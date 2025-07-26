@@ -1,0 +1,18 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    ApexToolbox\SymfonyLogger\EventListener\LoggerListener:
+        arguments:
+            $parameterBag: '@parameter_bag'
+            $kernel: '@kernel'
+        tags:
+            - { name: kernel.event_subscriber }
+
+    ApexToolbox\SymfonyLogger\EventListener\LogSubscriber:
+        arguments:
+            $logger: '@logger'
+        tags:
+            - { name: kernel.event_subscriber }
+            - { name: monolog.processor, method: __invoke }
