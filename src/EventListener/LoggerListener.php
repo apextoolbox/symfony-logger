@@ -108,7 +108,39 @@ class LoggerListener implements EventSubscriberInterface
             'body' => $this->filterBody($request->request->all()),
             'status' => $response->getStatusCode(),
             'response' => $this->getResponseContent($response),
+            'ip_address' => $this->getRealIpAddress($request),
         ];
+    }
+
+    protected function getRealIpAddress(Request $request): string
+    {
+        $headers = [
+            'CF-Connecting-IP',     // Cloudflare
+            'X-Forwarded-For',      // Standard proxy header
+            'X-Real-IP',            // Nginx proxy
+            'X-Client-IP',          // Apache mod_proxy
+            'HTTP_X_FORWARDED_FOR', // Alternative format
+            'HTTP_X_REAL_IP',       // Alternative format
+            'HTTP_CF_CONNECTING_IP', // Alternative Cloudflare format
+        ];
+
+        foreach ($headers as $header) {
+            $value = $request->headers->get($header) ?? $_SERVER[$header] ?? null;
+            
+            if ($value) {
+                // Handle comma-separated IPs (X-Forwarded-For can contain multiple IPs)
+                $ips = explode(',', $value);
+                $ip = trim($ips[0]);
+                
+                // Validate IP address
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return $ip;
+                }
+            }
+        }
+
+        // Fallback to request IP
+        return $request->getClientIp() ?? '127.0.0.1';
     }
 
     protected function filterHeaders(array $headers): array
@@ -189,6 +221,7 @@ class LoggerListener implements EventSubscriberInterface
                     'payload' => $data['body'],
                     'status_code' => $data['status'],
                     'response' => $data['response'],
+                    'ip_address' => $data['ip_address'],
                     'duration' => $this->startTime ? microtime(true) - $this->startTime : 0,
                     'logs' => LogBuffer::flush(),
                 ],
