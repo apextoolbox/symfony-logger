@@ -95,8 +95,12 @@ class LoggerListener implements EventSubscriberInterface
             return true;
         }
         
+        // Remove leading slash from path for consistent matching
+        $normalizedPath = ltrim($path, '/');
+        $normalizedPattern = ltrim($pattern, '/');
+        
         // Use fnmatch for pattern matching
-        return fnmatch($pattern, $path);
+        return fnmatch($normalizedPattern, $normalizedPath);
     }
 
     protected function prepareTrackingData(Request $request, Response $response): array

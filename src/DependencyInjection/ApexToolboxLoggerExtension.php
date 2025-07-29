@@ -2,8 +2,6 @@
 
 namespace ApexToolbox\SymfonyLogger\DependencyInjection;
 
-use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
-use ApexToolbox\SymfonyLogger\EventListener\LogSubscriber;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
@@ -22,13 +20,6 @@ class ApexToolboxLoggerExtension extends Extension
         // Load services
         $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.yaml');
-
-        // Register event listeners
-        $container->autowire(LoggerListener::class, LoggerListener::class)
-            ->addTag('kernel.event_subscriber');
-
-        $container->autowire(LogSubscriber::class, LogSubscriber::class)
-            ->addTag('kernel.event_subscriber');
     }
 
     public function getAlias(): string

@@ -10,9 +10,6 @@ services:
         tags:
             - { name: kernel.event_subscriber }
 
-    ApexToolbox\SymfonyLogger\EventListener\LogSubscriber:
-        arguments:
-            $logger: '@logger'
+    ApexToolbox\SymfonyLogger\LogProcessor:
         tags:
-            - { name: kernel.event_subscriber }
             - { name: monolog.processor, method: __invoke }

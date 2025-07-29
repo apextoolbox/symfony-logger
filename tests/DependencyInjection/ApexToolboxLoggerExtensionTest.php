@@ -4,7 +4,6 @@ namespace ApexToolbox\SymfonyLogger\Tests\DependencyInjection;
 
 use ApexToolbox\SymfonyLogger\DependencyInjection\ApexToolboxLoggerExtension;
 use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
-use ApexToolbox\SymfonyLogger\EventListener\LogSubscriber;
 use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -62,14 +61,11 @@ class ApexToolboxLoggerExtensionTest extends AbstractTestCase
         $this->extension->load([], $this->container);
         
         $this->assertTrue($this->container->hasDefinition(LoggerListener::class));
-        $this->assertTrue($this->container->hasDefinition(LogSubscriber::class));
         
-        // Check that services are tagged as event subscribers
+        // Check that LoggerListener service is tagged as event subscriber
         $loggerListenerDef = $this->container->getDefinition(LoggerListener::class);
-        $logSubscriberDef = $this->container->getDefinition(LogSubscriber::class);
         
         $this->assertTrue($loggerListenerDef->hasTag('kernel.event_subscriber'));
-        $this->assertTrue($logSubscriberDef->hasTag('kernel.event_subscriber'));
     }
 
     public function testLoadWithMultipleConfigs(): void
