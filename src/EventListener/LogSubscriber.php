@@ -11,8 +11,11 @@ use Monolog\LogRecord;
 
 class LogSubscriber implements EventSubscriberInterface
 {
-    public function __construct(private LoggerInterface $logger)
+    private LoggerInterface $logger;
+
+    public function __construct(LoggerInterface $logger)
     {
+        $this->logger = $logger;
     }
 
     public static function getSubscribedEvents(): array
@@ -41,7 +44,7 @@ class LogSubscriber implements EventSubscriberInterface
         // Handle Monolog records
         LogBuffer::add([
             'time' => $record->datetime,
-            'level' => $record->level->getName(),
+            'level' => is_object($record->level) ? $record->level->getName() : strtolower($record->level),
             'message' => $record->message,
             'context' => $record->context,
         ]);
