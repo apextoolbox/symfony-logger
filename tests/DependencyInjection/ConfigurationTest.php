@@ -38,6 +38,8 @@ class ConfigurationTest extends AbstractTestCase
         $this->assertEquals(['authorization', 'x-api-key', 'cookie'], $config['headers']['exclude']);
         $this->assertEquals(10240, $config['body']['max_size']);
         $this->assertEquals(['password', 'password_confirmation', 'token', 'secret'], $config['body']['exclude']);
+        $this->assertFalse($config['universal_logging']['enabled']);
+        $this->assertEquals(['http', 'console', 'queue'], $config['universal_logging']['types']);
     }
 
     public function testCustomConfiguration(): void
@@ -57,6 +59,10 @@ class ConfigurationTest extends AbstractTestCase
                 'body' => [
                     'max_size' => 5120,
                     'exclude' => ['secret_field']
+                ],
+                'universal_logging' => [
+                    'enabled' => true,
+                    'types' => ['console']
                 ]
             ]
         ];
@@ -71,6 +77,8 @@ class ConfigurationTest extends AbstractTestCase
         $this->assertEquals(['custom-header'], $config['headers']['exclude']);
         $this->assertEquals(5120, $config['body']['max_size']);
         $this->assertEquals(['secret_field'], $config['body']['exclude']);
+        $this->assertTrue($config['universal_logging']['enabled']);
+        $this->assertEquals(['console'], $config['universal_logging']['types']);
     }
 
     public function testPartialConfiguration(): void
@@ -116,5 +124,22 @@ class ConfigurationTest extends AbstractTestCase
         $this->assertEquals([], $config['path_filters']['exclude']);
         $this->assertEquals([], $config['headers']['exclude']);
         $this->assertEquals([], $config['body']['exclude']);
+    }
+
+    public function testUniversalLoggingConfiguration(): void
+    {
+        $universalConfig = [
+            'apex_toolbox_logger' => [
+                'universal_logging' => [
+                    'enabled' => true,
+                    'types' => ['http', 'queue']
+                ]
+            ]
+        ];
+
+        $config = $this->processor->processConfiguration($this->configuration, $universalConfig);
+        
+        $this->assertTrue($config['universal_logging']['enabled']);
+        $this->assertEquals(['http', 'queue'], $config['universal_logging']['types']);
     }
 }

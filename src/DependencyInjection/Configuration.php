@@ -65,6 +65,20 @@ class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
+                ->arrayNode('universal_logging')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')
+                            ->defaultFalse()
+                            ->info('Enable universal log capture for console and queue contexts')
+                        ->end()
+                        ->arrayNode('types')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['http', 'console', 'queue'])
+                            ->info('Log types to capture (http, console, queue)')
+                        ->end()
+                    ->end()
+                ->end()
             ->end();
 
         return $treeBuilder;

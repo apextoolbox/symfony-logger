@@ -10,6 +10,9 @@ Symfony bundle for logging HTTP requests and responses, sending data to ApexTool
 ## Features
 
 - Event-driven request/response logging using Symfony EventDispatcher
+- **Universal log capture**: HTTP requests, console commands, and background jobs
+- **Source class detection**: Automatically captures the originating class/service name
+- **Asynchronous sending**: Non-blocking log transmission to prevent performance impact
 - Configurable path filtering (include/exclude patterns)
 - Security-focused: filters sensitive headers and request fields
 - Configurable payload size limits
@@ -92,7 +95,9 @@ Once configured, the bundle will automatically:
 
 1. **Track HTTP Requests/Responses**: All requests matching your path filters will be logged
 2. **Capture Application Logs**: Monolog entries will be included with request data
-3. **Send Data to ApexToolbox**: Data is sent asynchronously to your ApexToolbox dashboard
+3. **Universal Log Capture**: Console commands and background jobs can also be tracked
+4. **Source Class Detection**: Each log entry includes the originating class/service name
+5. **Send Data to ApexToolbox**: Data is sent asynchronously to your ApexToolbox dashboard
 
 ### Path Filtering Examples
 
@@ -109,12 +114,37 @@ apex_toolbox_logger:
             - 'debug/*'        # Skip debug routes
 ```
 
+### Universal Logging Configuration
+
+To enable logging for console commands and background jobs, add the universal logging configuration:
+
+```yaml
+apex_toolbox_logger:
+    enabled: true
+    token: '%env(APEX_TOOLBOX_TOKEN)%'
+    
+    # Enable universal logging for all contexts
+    universal_logging:
+        enabled: true
+        types: ['http', 'console', 'queue']  # Which types to capture
+
+    # Standard HTTP logging configuration remains the same
+    path_filters:
+        include: ['api/*']
+        exclude: ['api/health']
+```
+
 ### Advanced Configuration
 
 ```yaml
 apex_toolbox_logger:
     enabled: '%env(bool:APEX_TOOLBOX_ENABLED)%'
     token: '%env(APEX_TOOLBOX_TOKEN)%'
+    
+    # Universal logging options
+    universal_logging:
+        enabled: true
+        types: ['http', 'console']  # Only HTTP and console, skip queue jobs
     
     # Custom headers to exclude
     headers:
@@ -131,10 +161,26 @@ apex_toolbox_logger:
             - 'private_key'
 ```
 
+### Monolog Handler Configuration
+
+For comprehensive log capture via Monolog (recommended for console/queue contexts), configure Monolog in your `config/packages/monolog.yaml`:
+
+```yaml
+monolog:
+    handlers:
+        # Your existing handlers...
+        
+        apex_toolbox:
+            type: service
+            id: ApexToolbox\SymfonyLogger\Handler\ApexToolboxHandler
+            level: debug  # Capture all log levels
+```
+
 ## Data Collected
 
 The bundle tracks:
 
+**For HTTP Requests:**
 - HTTP method and full URL
 - Request headers (filtered for security)
 - Request body/payload (filtered and size-limited)
@@ -143,6 +189,18 @@ The bundle tracks:
 - Request duration
 - Application logs (via Monolog integration)
 - Timestamp
+
+**For Console Commands & Background Jobs:**
+- Log level (debug, info, warning, error, etc.)
+- Log message and context
+- **Source class name** (automatically detected)
+- **Execution type** (`console` or `queue`)
+- Timestamp
+
+**Source Class Detection Examples:**
+- `App\Command\ProcessOrdersCommand` for console commands
+- `App\Service\NotificationService` for service classes
+- `App\Job\SendEmailJob` for queue job classes
 
 ## Security Features
 
@@ -156,16 +214,21 @@ The bundle tracks:
 
 - **ApexToolboxLoggerBundle**: Main bundle class
 - **LoggerListener**: Handles HTTP request/response events
-- **LogSubscriber**: Captures Monolog entries and console commands  
+- **ApexToolboxHandler**: Monolog handler for universal log capture
+- **ContextDetector**: Detects execution context (HTTP/console/queue)
+- **SourceClassExtractor**: Extracts originating class names from logs
 - **LogBuffer**: Thread-safe buffer for collecting log entries
 - **Configuration**: Symfony configuration tree definition
 
 ## Performance Considerations
 
-- Uses 1-second HTTP timeout for external requests
+- **Asynchronous Sending**: All external requests use non-blocking HTTP calls
+- Uses 1-second HTTP timeout for external requests  
 - Failed requests are silently ignored to prevent application disruption
+- **Console/Queue Logs**: Sent immediately (queue) or on shutdown (console) to avoid blocking
 - Consider using path filters to exclude high-traffic, low-value endpoints
 - Request/response bodies are size-limited to prevent memory issues
+- **Source class detection** uses optimized backtrace analysis with minimal performance impact
 
 ## Troubleshooting
 
@@ -187,6 +250,29 @@ The bundle tracks:
 1. Add more specific path filters to reduce tracking overhead
 2. Decrease `body.max_size` limit
 3. Exclude high-traffic endpoints in path filters
+
+## Testing Universal Logging
+
+A complete test application is available to demonstrate all universal logging functionality:
+
+**📁 Test Application**: `../symfony-app/`
+
+The test app includes:
+- ✅ Console commands with source class detection
+- ✅ HTTP endpoints with comprehensive logging  
+- ✅ Queue/background job processing
+- ✅ Service integration across all contexts
+- ✅ Error handling and performance testing
+
+**Quick Test:**
+```bash
+cd ../symfony-app
+composer install
+echo "APEX_TOOLBOX_TOKEN=your_token" > .env.local
+php bin/console app:test-logger
+```
+
+See the test app's README for complete testing instructions and examples.
 
 ## Development
 

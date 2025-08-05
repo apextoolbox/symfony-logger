@@ -3,6 +3,7 @@
 namespace ApexToolbox\SymfonyLogger\EventListener;
 
 use ApexToolbox\SymfonyLogger\LogBuffer;
+use ApexToolbox\SymfonyLogger\SourceClassExtractor;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,11 +19,16 @@ class LoggerListener implements EventSubscriberInterface
     private array $config;
     private ?float $startTime = null;
     private KernelInterface $kernel;
+    private SourceClassExtractor $sourceClassExtractor;
 
-    public function __construct(ParameterBagInterface $parameterBag, KernelInterface $kernel)
-    {
+    public function __construct(
+        ParameterBagInterface $parameterBag, 
+        KernelInterface $kernel,
+        SourceClassExtractor $sourceClassExtractor
+    ) {
         $this->config = $parameterBag->get('apex_toolbox_logger') ?? [];
         $this->kernel = $kernel;
+        $this->sourceClassExtractor = $sourceClassExtractor;
     }
 
     public static function getSubscribedEvents(): array
@@ -228,9 +234,10 @@ class LoggerListener implements EventSubscriberInterface
                     'payload' => $data['body'],
                     'status_code' => $data['status'],
                     'response' => $data['response'],
-                    'ip_address' => $data['ip_address'],
+                    'ip_address' => $data['ip_address'] ?? null,
                     'duration' => $this->startTime ? microtime(true) - $this->startTime : 0,
-                    'logs' => LogBuffer::flush(),
+                    'type' => 'http',
+                    'logs' => $this->enhanceLogsWithSourceClass(LogBuffer::flush()),
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -248,5 +255,25 @@ class LoggerListener implements EventSubscriberInterface
 
         // Production endpoint - hardcoded (used by all users, including their local dev)
         return 'https://apextoolbox.com/api/v1/logs';
+    }
+
+    private function enhanceLogsWithSourceClass(array $logs): array
+    {
+        $enhancedLogs = [];
+        
+        foreach ($logs as $log) {
+            // Add source_class and type if not already present
+            if (!isset($log['source_class'])) {
+                $log['source_class'] = $this->sourceClassExtractor->extractSourceClass($log['context'] ?? []);
+            }
+            
+            if (!isset($log['type'])) {
+                $log['type'] = 'http';
+            }
+            
+            $enhancedLogs[] = $log;
+        }
+        
+        return $enhancedLogs;
     }
 }

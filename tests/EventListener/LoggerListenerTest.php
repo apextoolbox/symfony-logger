@@ -4,6 +4,7 @@ namespace ApexToolbox\SymfonyLogger\Tests\EventListener;
 
 use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
 use ApexToolbox\SymfonyLogger\LogBuffer;
+use ApexToolbox\SymfonyLogger\SourceClassExtractor;
 use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,12 +21,14 @@ class LoggerListenerTest extends AbstractTestCase
     private LoggerListener $listener;
     private ParameterBag $parameterBag;
     private KernelInterface $kernel;
+    private SourceClassExtractor $sourceClassExtractor;
 
     protected function setUp(): void
     {
         parent::setUp();
         
         $this->kernel = Mockery::mock(KernelInterface::class);
+        $this->sourceClassExtractor = Mockery::mock(SourceClassExtractor::class);
         $this->parameterBag = new ParameterBag([
             'apex_toolbox_logger' => [
                 'enabled' => true,
@@ -45,7 +48,7 @@ class LoggerListenerTest extends AbstractTestCase
             ]
         ]);
         
-        $this->listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $this->listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         LogBuffer::flush();
     }
 
@@ -107,7 +110,7 @@ class LoggerListenerTest extends AbstractTestCase
     public function testShouldTrackReturnsFalseWhenDisabled(): void
     {
         $this->parameterBag->set('apex_toolbox_logger', ['enabled' => false, 'token' => 'test-token']);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $request = Request::create('/api/test', 'GET');
         $shouldTrack = $this->invokePrivateMethod($listener, 'shouldTrack', [$request]);
@@ -118,7 +121,7 @@ class LoggerListenerTest extends AbstractTestCase
     public function testShouldTrackReturnsFalseWhenNoToken(): void
     {
         $this->parameterBag->set('apex_toolbox_logger', ['enabled' => true, 'token' => '']);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $request = Request::create('/api/test', 'GET');
         $shouldTrack = $this->invokePrivateMethod($listener, 'shouldTrack', [$request]);
@@ -137,7 +140,7 @@ class LoggerListenerTest extends AbstractTestCase
                 'exclude' => ['/api/health']
             ]
         ]);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $request = Request::create('/api/test', 'GET');
         
@@ -225,7 +228,7 @@ class LoggerListenerTest extends AbstractTestCase
             'token' => 'test-token',
             'headers' => ['include_sensitive' => true]
         ]);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $headers = [
             'authorization' => ['Bearer token'],
@@ -262,7 +265,7 @@ class LoggerListenerTest extends AbstractTestCase
             'token' => 'test-token',
             'body' => ['max_size' => 10, 'exclude' => []]
         ]);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $body = ['large_field' => str_repeat('a', 100)];
         
@@ -298,7 +301,7 @@ class LoggerListenerTest extends AbstractTestCase
             'token' => 'test-token',
             'body' => ['max_size' => 10]
         ]);
-        $listener = new LoggerListener($this->parameterBag, $this->kernel);
+        $listener = new LoggerListener($this->parameterBag, $this->kernel, $this->sourceClassExtractor);
         
         $response = new Response(str_repeat('a', 100));
         
@@ -315,10 +318,10 @@ class LoggerListenerTest extends AbstractTestCase
         $this->assertEquals('https://apextoolbox.com/api/v1/logs', $url);
     }
 
-    public function testSendSyncRequestRunsWithoutErrors(): void
+    public function testSendSyncRequestHandlesDataCorrectly(): void
     {
         $data = [
-            'method' => 'GET',
+            'method' => 'GET', 
             'url' => 'https://example.com/api/test',
             'headers' => ['content-type' => 'application/json'],
             'body' => ['test' => 'data'],
@@ -326,12 +329,22 @@ class LoggerListenerTest extends AbstractTestCase
             'response' => ['success' => true]
         ];
         
-        // Test that method runs without throwing exception
-        try {
-            $this->invokePrivateMethod($this->listener, 'sendSyncRequest', [$data]);
-            $this->assertTrue(true);
-        } catch (\Exception $e) {
-            $this->fail('sendSyncRequest should not throw exceptions: ' . $e->getMessage());
-        }
+        // Add test logs to buffer
+        LogBuffer::add(['message' => 'test log 1']);
+        LogBuffer::add(['message' => 'test log 2']);
+        
+        $initialLogCount = count(LogBuffer::all());
+        $this->assertEquals(2, $initialLogCount, 'Should have 2 logs in buffer initially');
+        
+        // The method should execute without throwing exceptions
+        // and should flush the log buffer as part of the HTTP request
+        $this->invokePrivateMethod($this->listener, 'sendSyncRequest', [$data]);
+        
+        // Verify that logs were flushed from buffer
+        $remainingLogs = LogBuffer::all();
+        $this->assertCount(0, $remainingLogs, 'Log buffer should be empty after sendSyncRequest');
+        
+        // If we reach this point, the method executed successfully
+        $this->addToAssertionCount(1);
     }
 }

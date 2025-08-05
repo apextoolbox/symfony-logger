@@ -7,9 +7,24 @@ services:
         arguments:
             $parameterBag: '@parameter_bag'
             $kernel: '@kernel'
+            $sourceClassExtractor: '@ApexToolbox\SymfonyLogger\SourceClassExtractor'
         tags:
             - { name: kernel.event_subscriber }
 
     ApexToolbox\SymfonyLogger\LogProcessor:
         tags:
             - { name: monolog.processor, method: __invoke }
+
+    ApexToolbox\SymfonyLogger\ContextDetector:
+        arguments:
+            $requestStack: '@request_stack'
+
+    ApexToolbox\SymfonyLogger\SourceClassExtractor: ~
+
+    ApexToolbox\SymfonyLogger\Handler\ApexToolboxHandler:
+        arguments:
+            $config: '%apex_toolbox_logger%'
+            $contextDetector: '@ApexToolbox\SymfonyLogger\ContextDetector'
+            $sourceClassExtractor: '@ApexToolbox\SymfonyLogger\SourceClassExtractor'
+        tags:
+            - { name: monolog.handler, method: handle }
