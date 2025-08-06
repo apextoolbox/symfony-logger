@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-01-08
+
+### Changed
+- **BREAKING**: Complete architecture simplification to match Laravel logger
+- Simplified ApexToolboxLogHandler constructor (only requires $config)
+- Simplified LoggerListener (only requires $parameterBag)
+- Updated README to concise SDK-style documentation
+- Reduced from 65 to 28 tests focusing on core functionality
+
+### Removed
+- **BREAKING**: ContextDetector class (no longer needed)
+- **BREAKING**: LogProcessor class (no longer needed)  
+- **BREAKING**: SourceClassExtractor class (no longer needed)
+- Removed complex service dependencies from services.yaml
+- Cleaned up unused tests and legacy code
+
+### Added
+- LogBuffer category support (DEFAULT_CATEGORY, HTTP_CATEGORY)
+- Simplified test suite matching Laravel approach
+
+### Fixed
+- All tests now passing with simplified architecture
+- Consistent batch logging behavior across both packages
+
 ## [1.1.0] - 2025-01-XX
 
 ### Added

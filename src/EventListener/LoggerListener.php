@@ -2,41 +2,50 @@
 
 namespace ApexToolbox\SymfonyLogger\EventListener;
 
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
 use ApexToolbox\SymfonyLogger\LogBuffer;
-use ApexToolbox\SymfonyLogger\SourceClassExtractor;
+use Symfony\Component\Console\Event\ConsoleCommandEvent;
+use Symfony\Component\Console\ConsoleEvents;
+use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
+use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
-use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use Symfony\Component\HttpKernel\KernelInterface;
+use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class LoggerListener implements EventSubscriberInterface
 {
     private array $config;
     private ?float $startTime = null;
-    private KernelInterface $kernel;
-    private SourceClassExtractor $sourceClassExtractor;
+    private ?HttpClientInterface $httpClient = null;
 
-    public function __construct(
-        ParameterBagInterface $parameterBag, 
-        KernelInterface $kernel,
-        SourceClassExtractor $sourceClassExtractor
-    ) {
+    public function __construct(ParameterBagInterface $parameterBag)
+    {
         $this->config = $parameterBag->get('apex_toolbox_logger') ?? [];
-        $this->kernel = $kernel;
-        $this->sourceClassExtractor = $sourceClassExtractor;
     }
 
     public static function getSubscribedEvents(): array
     {
-        return [
+        $events = [
             KernelEvents::REQUEST => ['onKernelRequest', 0],
             KernelEvents::RESPONSE => ['onKernelResponse', 0],
+            ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
         ];
+
+        if (class_exists(WorkerMessageHandledEvent::class)) {
+            $events[WorkerMessageHandledEvent::class] = ['onWorkerMessageHandled', 0];
+        }
+
+        if (class_exists(WorkerMessageFailedEvent::class)) {
+            $events[WorkerMessageFailedEvent::class] = ['onWorkerMessageFailed', 0];
+        }
+
+        return $events;
     }
 
     public function onKernelRequest(RequestEvent $event): void
@@ -61,6 +70,24 @@ class LoggerListener implements EventSubscriberInterface
             $data = $this->prepareTrackingData($request, $response);
             $this->sendSyncRequest($data);
         }
+    }
+
+    public function onConsoleCommand(ConsoleCommandEvent $event): void
+    {
+        // Register shutdown function to flush buffer after console command
+        register_shutdown_function(function () {
+            ApexToolboxLogHandler::flushBuffer($this->config);
+        });
+    }
+
+    public function onWorkerMessageHandled(WorkerMessageHandledEvent $event): void
+    {
+        ApexToolboxLogHandler::flushBuffer($this->config);
+    }
+
+    public function onWorkerMessageFailed(WorkerMessageFailedEvent $event): void
+    {
+        ApexToolboxLogHandler::flushBuffer($this->config);
     }
 
     protected function shouldTrack(Request $request): bool
@@ -192,10 +219,7 @@ class LoggerListener implements EventSubscriberInterface
         return $filtered;
     }
 
-    /**
-     * @return array|string|null
-     */
-    protected function getResponseContent(Response $response)
+    protected function getResponseContent(Response $response): array|string|null
     {
         $content = $response->getContent();
         $maxSize = $this->config['body']['max_size'] ?? 10240;
@@ -218,11 +242,11 @@ class LoggerListener implements EventSubscriberInterface
         try {
             $url = $this->getEndpointUrl();
             
-            $client = HttpClient::create([
-                'timeout' => 1,
-            ]);
+            if (!$this->httpClient) {
+                $this->httpClient = HttpClient::create(['timeout' => 2]);
+            }
 
-            $client->request('POST', $url, [
+            $this->httpClient->request('POST', $url, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->config['token'],
                     'Content-Type' => 'application/json',
@@ -237,11 +261,15 @@ class LoggerListener implements EventSubscriberInterface
                     'ip_address' => $data['ip_address'] ?? null,
                     'duration' => $this->startTime ? microtime(true) - $this->startTime : 0,
                     'type' => 'http',
-                    'logs' => $this->enhanceLogsWithSourceClass(LogBuffer::flush()),
+                    'logs' => LogBuffer::get(LogBuffer::HTTP_CATEGORY),
                 ],
             ]);
+
+            // Clear the buffer after sending
+            LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
         } catch (\Throwable $e) {
-            // Silently fail
+            // Silently fail but still flush buffer
+            LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
         }
     }
 
@@ -255,25 +283,5 @@ class LoggerListener implements EventSubscriberInterface
 
         // Production endpoint - hardcoded (used by all users, including their local dev)
         return 'https://apextoolbox.com/api/v1/logs';
-    }
-
-    private function enhanceLogsWithSourceClass(array $logs): array
-    {
-        $enhancedLogs = [];
-        
-        foreach ($logs as $log) {
-            // Add source_class and type if not already present
-            if (!isset($log['source_class'])) {
-                $log['source_class'] = $this->sourceClassExtractor->extractSourceClass($log['context'] ?? []);
-            }
-            
-            if (!isset($log['type'])) {
-                $log['type'] = 'http';
-            }
-            
-            $enhancedLogs[] = $log;
-        }
-        
-        return $enhancedLogs;
     }
 }

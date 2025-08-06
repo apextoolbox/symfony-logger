@@ -11,6 +11,7 @@ class LogBufferTest extends AbstractTestCase
         parent::setUp();
         // Clear the buffer before each test
         LogBuffer::flush();
+        LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
     }
 
     public function testCanAddLogEntry(): void
@@ -19,7 +20,7 @@ class LogBufferTest extends AbstractTestCase
         
         LogBuffer::add($entry);
         
-        $entries = LogBuffer::all();
+        $entries = LogBuffer::get();
         $this->assertCount(1, $entries);
         $this->assertEquals($entry, $entries[0]);
     }
@@ -32,7 +33,7 @@ class LogBufferTest extends AbstractTestCase
         LogBuffer::add($entry1);
         LogBuffer::add($entry2);
         
-        $entries = LogBuffer::all();
+        $entries = LogBuffer::get();
         $this->assertCount(2, $entries);
         $this->assertEquals($entry1, $entries[0]);
         $this->assertEquals($entry2, $entries[1]);
@@ -46,7 +47,7 @@ class LogBufferTest extends AbstractTestCase
         LogBuffer::add($entry1);
         LogBuffer::add($entry2);
         
-        $entries = LogBuffer::all();
+        $entries = LogBuffer::get();
         $this->assertIsArray($entries);
         $this->assertCount(2, $entries);
     }
@@ -66,7 +67,7 @@ class LogBufferTest extends AbstractTestCase
         $this->assertEquals($entry2, $flushed[1]);
         
         // Buffer should be empty after flush
-        $this->assertCount(0, LogBuffer::all());
+        $this->assertCount(0, LogBuffer::get());
     }
 
     public function testFlushReturnsEmptyArrayWhenNoEntries(): void
@@ -77,9 +78,9 @@ class LogBufferTest extends AbstractTestCase
         $this->assertCount(0, $flushed);
     }
 
-    public function testAllReturnsEmptyArrayWhenNoEntries(): void
+    public function testGetReturnsEmptyArrayWhenNoEntries(): void
     {
-        $entries = LogBuffer::all();
+        $entries = LogBuffer::get();
         
         $this->assertIsArray($entries);
         $this->assertCount(0, $entries);
@@ -89,12 +90,29 @@ class LogBufferTest extends AbstractTestCase
     {
         LogBuffer::add(['message' => 'test1']);
         
-        $entries1 = LogBuffer::all();
+        $entries1 = LogBuffer::get();
         $this->assertCount(1, $entries1);
         
         LogBuffer::add(['message' => 'test2']);
         
-        $entries2 = LogBuffer::all();
+        $entries2 = LogBuffer::get();
         $this->assertCount(2, $entries2);
+    }
+
+    public function testCanAddWithCategories(): void
+    {
+        $entry1 = ['message' => 'default'];
+        $entry2 = ['message' => 'http'];
+        
+        LogBuffer::add($entry1);
+        LogBuffer::add($entry2, LogBuffer::HTTP_CATEGORY);
+        
+        $defaultEntries = LogBuffer::get();
+        $httpEntries = LogBuffer::get(LogBuffer::HTTP_CATEGORY);
+        
+        $this->assertCount(1, $defaultEntries);
+        $this->assertCount(1, $httpEntries);
+        $this->assertEquals($entry1, $defaultEntries[0]);
+        $this->assertEquals($entry2, $httpEntries[0]);
     }
 }
