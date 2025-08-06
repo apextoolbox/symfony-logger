@@ -4,6 +4,7 @@ namespace ApexToolbox\SymfonyLogger\EventListener;
 
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
 use ApexToolbox\SymfonyLogger\LogBuffer;
+use Ramsey\Uuid\Uuid;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
@@ -260,15 +261,13 @@ class LoggerListener implements EventSubscriberInterface
                     'response' => $data['response'],
                     'ip_address' => $data['ip_address'] ?? null,
                     'duration' => $this->startTime ? microtime(true) - $this->startTime : 0,
-                    'type' => 'http',
+                    'logs_trace_id' => (string) Uuid::uuid7(),
                     'logs' => LogBuffer::get(LogBuffer::HTTP_CATEGORY),
                 ],
             ]);
 
-            // Clear the buffer after sending
             LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
         } catch (\Throwable $e) {
-            // Silently fail but still flush buffer
             LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
         }
     }
