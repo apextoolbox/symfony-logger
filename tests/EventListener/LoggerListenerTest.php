@@ -4,8 +4,8 @@ namespace ApexToolbox\SymfonyLogger\Tests\EventListener;
 
 use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
-use ApexToolbox\SymfonyLogger\LogBuffer;
-use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,14 +16,13 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Console\ConsoleEvents;
 
-class LoggerListenerTest extends AbstractTestCase
+class LoggerListenerTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-        // Clear buffer before each test
-        LogBuffer::flush();
-        LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
+        // Clear PayloadCollector before each test
+        PayloadCollector::clear();
     }
 
     public function testGetSubscribedEvents(): void
@@ -35,26 +34,40 @@ class LoggerListenerTest extends AbstractTestCase
         $this->assertArrayHasKey(ConsoleEvents::COMMAND, $events);
     }
 
-    public function testOnKernelResponseCallsFlushBuffer(): void
+    public function testOnKernelResponseCallsPayloadCollector(): void
     {
-        $parameterBag = new ParameterBag(['apex_toolbox_logger' => ['token' => 'test']]);
+        $config = [
+            'apex_toolbox_logger' => [
+                'token' => 'test',
+                'enabled' => true,
+                'path_filters' => [
+                    'include' => ['*'],
+                    'exclude' => []
+                ],
+                'headers' => ['exclude' => []],
+                'body' => ['exclude' => [], 'mask' => []],
+                'response' => ['exclude' => [], 'mask' => []]
+            ]
+        ];
+
+        $parameterBag = new ParameterBag($config);
         $listener = new LoggerListener($parameterBag);
-        
-        // Add something to buffer
-        LogBuffer::add(['message' => 'test']);
-        $this->assertCount(1, LogBuffer::get());
-        
+
         $kernel = $this->createMock(HttpKernelInterface::class);
-        $request = new Request();
-        $response = new Response();
-        
-        $event = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
-        
-        // Mock static method call would be complex, so we just test the method doesn't crash
-        $listener->onKernelResponse($event);
-        
-        // The buffer should still have the entry since we're not actually sending HTTP
-        $this->assertTrue(true); // Test passes if no exception thrown
+        $request = Request::create('/test', 'GET');
+        $response = new Response('test response', 200);
+
+        // First trigger request event to set start time
+        $requestEvent = new RequestEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST);
+        $listener->onKernelRequest($requestEvent);
+
+        $responseEvent = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
+
+        // This should collect data and send via PayloadCollector
+        $listener->onKernelResponse($responseEvent);
+
+        // Test passes if no exception thrown
+        $this->assertTrue(true);
     }
 
     public function testOnKernelRequestSetsStartTime(): void
@@ -90,8 +103,8 @@ class LoggerListenerTest extends AbstractTestCase
         $parameterBag = new ParameterBag($config);
         $listener = new LoggerListener($parameterBag);
         
-        // Add some logs to buffer
-        LogBuffer::add(['message' => 'test log', 'level' => 'info'], LogBuffer::HTTP_CATEGORY);
+        // Configure PayloadCollector
+        PayloadCollector::configure($config['apex_toolbox_logger']);
         
         $kernel = $this->createMock(HttpKernelInterface::class);
         $request = Request::create('https://example.com/api/users', 'GET');

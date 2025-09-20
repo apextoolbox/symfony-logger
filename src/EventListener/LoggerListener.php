@@ -3,7 +3,8 @@
 namespace ApexToolbox\SymfonyLogger\EventListener;
 
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
-use ApexToolbox\SymfonyLogger\LogBuffer;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxExceptionHandler;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Ramsey\Uuid\Uuid;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\ConsoleEvents;
@@ -14,6 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpClient\HttpClient;
@@ -28,6 +30,7 @@ class LoggerListener implements EventSubscriberInterface
     public function __construct(ParameterBagInterface $parameterBag)
     {
         $this->config = $parameterBag->get('apex_toolbox_logger') ?? [];
+        PayloadCollector::configure($this->config);
     }
 
     public static function getSubscribedEvents(): array
@@ -35,6 +38,7 @@ class LoggerListener implements EventSubscriberInterface
         $events = [
             KernelEvents::REQUEST => ['onKernelRequest', 0],
             KernelEvents::RESPONSE => ['onKernelResponse', 0],
+            KernelEvents::EXCEPTION => ['onKernelException', 0],
             ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
         ];
 
@@ -68,8 +72,20 @@ class LoggerListener implements EventSubscriberInterface
         $response = $event->getResponse();
 
         if ($this->shouldTrack($request)) {
-            $data = $this->prepareTrackingData($request, $response);
-            $this->sendSyncRequest($data);
+            PayloadCollector::collect($request, $response, $this->startTime);
+            PayloadCollector::send();
+            PayloadCollector::clear();
+        }
+    }
+
+    public function onKernelException(ExceptionEvent $event): void
+    {
+        if (!$event->isMainRequest()) {
+            return;
+        }
+
+        if ($this->shouldTrack($event->getRequest())) {
+            ApexToolboxExceptionHandler::capture($event->getThrowable());
         }
     }
 
@@ -137,18 +153,6 @@ class LoggerListener implements EventSubscriberInterface
         return fnmatch($normalizedPattern, $normalizedPath);
     }
 
-    protected function prepareTrackingData(Request $request, Response $response): array
-    {
-        return [
-            'method' => $request->getMethod(),
-            'url' => $request->getUri(),
-            'headers' => $this->filterHeaders($request->headers->all()),
-            'body' => $this->filterBody($request->request->all()),
-            'status' => $response->getStatusCode(),
-            'response' => $this->getResponseContent($response),
-            'ip_address' => $this->getRealIpAddress($request),
-        ];
-    }
 
     protected function getRealIpAddress(Request $request): string
     {
@@ -238,39 +242,6 @@ class LoggerListener implements EventSubscriberInterface
         return $content;
     }
 
-    protected function sendSyncRequest(array $data): void
-    {
-        try {
-            $url = $this->getEndpointUrl();
-            
-            if (!$this->httpClient) {
-                $this->httpClient = HttpClient::create(['timeout' => 2]);
-            }
-
-            $this->httpClient->request('POST', $url, [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $this->config['token'],
-                    'Content-Type' => 'application/json',
-                ],
-                'json' => [
-                    'method' => $data['method'],
-                    'uri' => $data['url'],
-                    'headers' => $data['headers'],
-                    'payload' => $data['body'],
-                    'status_code' => $data['status'],
-                    'response' => $data['response'],
-                    'ip_address' => $data['ip_address'] ?? null,
-                    'duration' => $this->startTime ? microtime(true) - $this->startTime : 0,
-                    'logs_trace_id' => (string) Uuid::uuid7(),
-                    'logs' => LogBuffer::get(LogBuffer::HTTP_CATEGORY),
-                ],
-            ]);
-
-            LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
-        } catch (\Throwable $e) {
-            LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
-        }
-    }
 
     protected function getEndpointUrl(): string
     {

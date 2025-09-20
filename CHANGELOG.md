@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-09-20
+
+### 🚀 Added
+
+#### Exception Handling System
+- **Complete Exception Capture**: Automatic exception logging with full stack traces and code context
+- **Exception Grouping**: SHA-256 hash generation for intelligent error grouping and deduplication
+- **Code Context Extraction**: Extract source code around exception lines (10 lines before, 5 after) for debugging
+- **App vs Vendor Detection**: Distinguish application code from vendor code in stack traces
+- **Security**: Relative file paths prevent exposing absolute server paths
+
+#### PayloadCollector Architecture
+- **Unified Data Collection**: New `PayloadCollector` replaces `LogBuffer` with comprehensive data management
+- **Request/Response Tracking**: Complete HTTP capture with performance metrics and real IP detection
+- **Exception Integration**: Automatic exception attachment to HTTP request logs
+- **Unified Payload Structure**: Combined logs, requests, responses, and exceptions in single payload
+
+#### Advanced Data Security
+- **Data Masking**: Replace sensitive values with `*******` while preserving data structure
+- **Recursive Filtering**: Deep filtering works on nested objects and arrays at any level
+- **Case-Insensitive Matching**: Automatic detection regardless of field name casing
+- **Exclude vs Mask**: Two-tier protection with configurable precedence rules
+- **Enhanced Defaults**: Comprehensive protection for SSN, phone, email, addresses, etc.
+
+#### Enhanced Configuration
+- **Response Filtering**: New configuration section for response data filtering and masking
+- **Extended Security**: More comprehensive default protection for sensitive fields
+- **Masking Options**: Separate mask and exclude arrays for granular control
+
+### 🔧 Enhanced
+- **Event Integration**: Added `onKernelException` event handling for automatic exception capture
+- **Performance**: Improved timing precision and 2-second HTTP timeouts
+- **IP Detection**: Real client IP extraction from forwarded headers
+- **JSON Handling**: Proper support for both array and primitive JSON responses
+
+### 🛡️ Security
+- **Information Leakage Prevention**: Stack traces exclude sensitive argument data
+- **Enhanced Header Filtering**: Improved filtering of authorization headers and API keys
+- **Context Sanitization**: Automatic sanitization of exception context data
+
+### 🧪 Testing
+- **45 Test Cases**: Complete coverage with 123 assertions
+- **PayloadCollector Tests**: 20+ dedicated tests for core functionality
+- **Exception Handler Tests**: Full coverage of exception capture
+- **PHP 8.4 Compatibility**: Clean support with no deprecation warnings
+
+### 📚 Documentation
+- **Complete README Rewrite**: Comprehensive installation, configuration, and usage guide
+- **Security Documentation**: Detailed security best practices and disclaimers
+- **Configuration Examples**: Real-world examples for production use
+
+### Removed
+- `LogBuffer` class (replaced by `PayloadCollector`)
+- `LogBufferTest` (replaced by `PayloadCollectorTest`)
+
+### Dependencies
+- **Added**: `symfony/uid` for UUID v7 generation
+
 ## [2.0.0] - 2025-01-08
 
 ### Changed

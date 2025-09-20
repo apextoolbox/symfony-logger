@@ -3,78 +3,171 @@
 namespace ApexToolbox\SymfonyLogger\Tests\Handler;
 
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
-use ApexToolbox\SymfonyLogger\LogBuffer;
-use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Level;
 use Monolog\LogRecord;
+use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class ApexToolboxHandlerTest extends AbstractTestCase
+class ApexToolboxHandlerTest extends TestCase
 {
+    private ApexToolboxLogHandler $handler;
+    private array $config;
+
     protected function setUp(): void
     {
         parent::setUp();
-        // Clear buffer before each test
-        LogBuffer::flush();
-        LogBuffer::flush(LogBuffer::HTTP_CATEGORY);
+
+        $this->config = [
+            'token' => 'test-token',
+            'enabled' => true
+        ];
+
+        $this->handler = new ApexToolboxLogHandler($this->config);
     }
 
-    public function testHandlerAddsToBuffer(): void
+    protected function tearDown(): void
     {
-        $config = ['token' => 'test-token'];
-        $handler = new ApexToolboxLogHandler($config);
-        
+        PayloadCollector::clear();
+        parent::tearDown();
+    }
+
+    public function testWriteWithValidConfig(): void
+    {
         $record = new LogRecord(
             datetime: new \DateTimeImmutable(),
-            channel: 'test',
+            channel: 'app',
             level: Level::Info,
             message: 'Test message',
-            context: ['key' => 'value']
+            context: ['key' => 'value'],
+            extra: []
+        );
+
+        $this->handler->handle($record);
+
+        // Use reflection to access PayloadCollector logs
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $logsProperty = $reflection->getProperty('logs');
+        $logsProperty->setAccessible(true);
+        $logs = $logsProperty->getValue();
+
+        $this->assertCount(1, $logs);
+
+        $logData = $logs[0];
+        $this->assertEquals('INFO', $logData['level']);
+        $this->assertEquals('Test message', $logData['message']);
+        $this->assertEquals(['key' => 'value'], $logData['context']);
+        $this->assertEquals('app', $logData['channel']);
+    }
+
+    public function testWriteWithoutToken(): void
+    {
+        $handler = new ApexToolboxLogHandler(['token' => null]);
+
+        $record = new LogRecord(
+            datetime: new \DateTimeImmutable(),
+            channel: 'app',
+            level: Level::Info,
+            message: 'Test message',
+            context: [],
+            extra: []
         );
 
         $handler->handle($record);
 
-        // Should be added to both default and HTTP categories
-        $defaultEntries = LogBuffer::get();
-        $httpEntries = LogBuffer::get(LogBuffer::HTTP_CATEGORY);
-        
-        $this->assertCount(1, $defaultEntries);
-        $this->assertCount(1, $httpEntries);
-        $this->assertEquals('Test message', $defaultEntries[0]['message']);
-        $this->assertEquals('INFO', $defaultEntries[0]['level']);
+        // Use reflection to access PayloadCollector logs
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $logsProperty = $reflection->getProperty('logs');
+        $logsProperty->setAccessible(true);
+        $logs = $logsProperty->getValue();
+
+        $this->assertEmpty($logs);
     }
 
-    public function testHandlerSkipsWithoutToken(): void
+    public function testPrepareLogData(): void
     {
-        $config = [];
-        $handler = new ApexToolboxLogHandler($config);
-        
+        $datetime = new \DateTimeImmutable('2023-01-01 12:00:00');
         $record = new LogRecord(
-            datetime: new \DateTimeImmutable(),
+            datetime: $datetime,
             channel: 'test',
-            level: Level::Info,
-            message: 'Test message',
-            context: []
+            level: Level::Error,
+            message: 'Error message',
+            context: ['error' => 'details'],
+            extra: ['class' => 'TestClass', 'function' => 'testMethod']
         );
 
-        $handler->handle($record);
+        $reflection = new \ReflectionClass($this->handler);
+        $method = $reflection->getMethod('prepareLogData');
+        $method->setAccessible(true);
 
-        $entries = LogBuffer::get();
-        $this->assertCount(0, $entries);
+        $result = $method->invoke($this->handler, $record);
+
+        $this->assertEquals('ERROR', $result['level']);
+        $this->assertEquals('Error message', $result['message']);
+        $this->assertEquals(['error' => 'details'], $result['context']);
+        $this->assertEquals('2023-01-01 12:00:00', $result['timestamp']);
+        $this->assertEquals('test', $result['channel']);
+        $this->assertEquals('TestClass', $result['source_class']);
+        $this->assertEquals('testMethod', $result['function']);
     }
 
-    public function testFlushBufferSendsHttpRequest(): void
+    public function testFlushBuffer(): void
     {
-        $httpClient = $this->createMock(HttpClientInterface::class);
-        $config = ['token' => 'test-token'];
-        
-        // Add some data to the buffer
-        LogBuffer::add(['message' => 'test']);
-        
-        $httpClient->expects($this->once())
-            ->method('request')
-            ->with('POST', 'https://apextoolbox.com/api/v1/logs');
+        PayloadCollector::configure($this->config);
+        PayloadCollector::addLog(['level' => 'Info', 'message' => 'Test 1']);
+        PayloadCollector::addLog(['level' => 'Error', 'message' => 'Test 2']);
 
-        ApexToolboxLogHandler::flushBuffer($config, $httpClient);
+        // Use reflection to verify logs are present
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $logsProperty = $reflection->getProperty('logs');
+        $logsProperty->setAccessible(true);
+        $logs = $logsProperty->getValue();
+
+        $this->assertCount(2, $logs);
+
+        ApexToolboxLogHandler::flushBuffer($this->config);
+
+        // Verify logs are cleared after flush
+        $logs = $logsProperty->getValue();
+        $this->assertEmpty($logs);
+    }
+
+    public function testFlushBufferWithEmptyBuffer(): void
+    {
+        PayloadCollector::configure($this->config);
+
+        // Use reflection to verify buffer is empty
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $logsProperty = $reflection->getProperty('logs');
+        $logsProperty->setAccessible(true);
+        $logs = $logsProperty->getValue();
+
+        $this->assertEmpty($logs);
+
+        ApexToolboxLogHandler::flushBuffer($this->config);
+
+        $logs = $logsProperty->getValue();
+        $this->assertEmpty($logs);
+    }
+
+    public function testFlushBufferWithoutToken(): void
+    {
+        $config = ['token' => null, 'enabled' => false];
+        PayloadCollector::configure($config);
+
+        // Manually add log directly using reflection since addLog won't work without token
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $logsProperty = $reflection->getProperty('logs');
+        $logsProperty->setAccessible(true);
+        $logsProperty->setValue(null, [['message' => 'Test']]);
+
+        $logs = $logsProperty->getValue();
+        $this->assertCount(1, $logs);
+
+        ApexToolboxLogHandler::flushBuffer($config);
+
+        // Logs should be cleared after flush
+        $logs = $logsProperty->getValue();
+        $this->assertEmpty($logs);
     }
 }
