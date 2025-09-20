@@ -1,7 +1,6 @@
 {
     "name": "apextoolbox/symfony-logger",
     "description": "Apex Toolbox Symfony Logger Bundle",
-    "version": "2.1.0",
     "type": "symfony-bundle",
     "license": "MIT",
     "keywords": ["symfony", "logging", "analytics", "apextoolbox"],
