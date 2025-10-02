@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2025-10-02
+
+### Fixed
+- Improved app code detection in stack traces to work reliably across all platforms (Linux, macOS, Windows)
+- Fixed vendor directory detection by normalizing path separators for cross-platform compatibility
+
+### Enhanced
+- Better identification of application code vs vendor code in exception stack traces
+- More accurate `in_app` field in stack trace frames helps users focus on their own code
+
+### Testing
+- Added comprehensive tests for vendor code detection
+- Added tests for `in_app` field validation in stack traces
+- Increased test coverage from 45 to 47 tests with 177 assertions
+
 ## [2.1.0] - 2025-09-20
 
 ### 🚀 Added

@@ -2,6 +2,7 @@
 
 namespace ApexToolbox\SymfonyLogger;
 
+use DateTime;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Uid\Uuid;
@@ -52,7 +53,7 @@ class PayloadCollector
 
         static::$metadata['start_time'] = $startTime;
         static::$metadata['end_time'] = $endTime;
-        static::$metadata['timestamp'] = (new \DateTime())->format('c');
+        static::$metadata['timestamp'] = (new DateTime())->format('c');
     }
 
     /**
@@ -161,11 +162,10 @@ class PayloadCollector
      */
     private static function sendPayload(array $payload): void
     {
-        $url = static::getEndpointUrl();
-
         $ch = curl_init();
+
         curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
+            CURLOPT_URL => static::getEndpointUrl(),
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($payload),
             CURLOPT_HTTPHEADER => [
@@ -245,7 +245,6 @@ class PayloadCollector
     private static function prepareStackTrace(array $trace): array
     {
         $basePath = getcwd();
-        $vendorPath = $basePath . '/vendor';
         $frames = [];
 
         foreach ($trace as $entry) {
@@ -254,15 +253,12 @@ class PayloadCollector
             // Remove args to avoid sensitive data
             unset($entry['args']);
 
-            $isAppCode = str_starts_with($entry['file'], $basePath)
-                && !str_starts_with($entry['file'], $vendorPath);
-
             $frame = [
                 'file' => str_replace($basePath . DIRECTORY_SEPARATOR, '', $entry['file']),
                 'line' => $entry['line'] ?? 0,
                 'function' => $entry['function'] ?? '',
                 'class' => $entry['class'] ?? '',
-                'in_app' => $isAppCode,
+                'in_app' => static::isAppCode($entry['file']),
                 'code_context' => static::extractCodeContext($entry['file'], $entry['line'] ?? 0)
             ];
 
@@ -270,6 +266,18 @@ class PayloadCollector
         }
 
         return $frames;
+    }
+
+    /**
+     * Detect if file is application code (not vendor)
+     */
+    private static function isAppCode(string $filePath): bool
+    {
+        // Normalize path separators for cross-platform compatibility
+        $normalizedPath = str_replace('\\', '/', $filePath);
+
+        // Check if path contains /vendor/
+        return !str_contains($normalizedPath, '/vendor/');
     }
 
     /**

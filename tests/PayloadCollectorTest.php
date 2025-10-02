@@ -126,6 +126,60 @@ class PayloadCollectorTest extends TestCase
         $this->assertEquals(500, $exceptionData['code']);
         $this->assertArrayHasKey('hash', $exceptionData);
         $this->assertArrayHasKey('stack_trace', $exceptionData);
+        $this->assertIsArray($exceptionData['stack_trace']);
+    }
+
+    public function test_exception_stack_trace_has_in_app_field()
+    {
+        $config = [
+            'enabled' => true,
+            'token' => 'test-token'
+        ];
+
+        PayloadCollector::configure($config);
+
+        $exception = new Exception('Test exception for in_app detection');
+        PayloadCollector::setException($exception);
+
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $exceptionDataProperty = $reflection->getProperty('exceptionData');
+        $exceptionDataProperty->setAccessible(true);
+        $exceptionData = $exceptionDataProperty->getValue();
+
+        $this->assertArrayHasKey('stack_trace', $exceptionData);
+        $stackTrace = $exceptionData['stack_trace'];
+
+        // At least one frame should exist
+        $this->assertNotEmpty($stackTrace);
+
+        // Each frame should have in_app field
+        foreach ($stackTrace as $frame) {
+            $this->assertArrayHasKey('in_app', $frame);
+            $this->assertIsBool($frame['in_app']);
+            $this->assertArrayHasKey('file', $frame);
+            $this->assertArrayHasKey('line', $frame);
+        }
+
+        // At least one frame should be from app code (this test file)
+        $appFrames = array_filter($stackTrace, fn($frame) => $frame['in_app'] === true);
+        $this->assertNotEmpty($appFrames, 'Expected at least one frame to be marked as app code');
+    }
+
+    public function test_vendor_code_is_detected_correctly()
+    {
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $isAppCodeMethod = $reflection->getMethod('isAppCode');
+        $isAppCodeMethod->setAccessible(true);
+
+        // Test app code paths
+        $this->assertTrue($isAppCodeMethod->invoke(null, '/var/www/project/src/Controller/TestController.php'));
+        $this->assertTrue($isAppCodeMethod->invoke(null, '/home/user/app/tests/SomeTest.php'));
+        $this->assertTrue($isAppCodeMethod->invoke(null, 'C:\\project\\src\\Service\\MyService.php'));
+
+        // Test vendor paths
+        $this->assertFalse($isAppCodeMethod->invoke(null, '/var/www/project/vendor/symfony/http-kernel/Kernel.php'));
+        $this->assertFalse($isAppCodeMethod->invoke(null, '/home/user/app/vendor/monolog/monolog/Logger.php'));
+        $this->assertFalse($isAppCodeMethod->invoke(null, 'C:\\project\\vendor\\package\\Class.php'));
     }
 
     public function test_add_log_stores_log_data()
