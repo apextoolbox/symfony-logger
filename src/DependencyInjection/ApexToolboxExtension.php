@@ -1,6 +1,6 @@
 <?php
 
-namespace ApexToolbox\Symfony\DependencyInjection;
+namespace ApexToolbox\SymfonyLogger\DependencyInjection;
 
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;

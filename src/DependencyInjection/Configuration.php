@@ -1,6 +1,6 @@
 <?php
 
-namespace ApexToolbox\Symfony\DependencyInjection;
+namespace ApexToolbox\SymfonyLogger\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
@@ -17,6 +17,10 @@ class Configuration implements ConfigurationInterface
                 ->booleanNode('enabled')
                     ->defaultTrue()
                     ->info('Enable or disable the logger')
+                ->end()
+                ->booleanNode('track_http_requests')
+                    ->defaultTrue()
+                    ->info('Automatically track all outgoing HTTP requests')
                 ->end()
                 ->scalarNode('token')
                     ->defaultValue('')

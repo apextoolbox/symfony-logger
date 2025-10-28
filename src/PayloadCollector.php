@@ -1,6 +1,6 @@
 <?php
 
-namespace ApexToolbox\Symfony;
+namespace ApexToolbox\SymfonyLogger;
 
 use DateTime;
 use Symfony\Component\HttpFoundation\Request;
@@ -114,6 +114,14 @@ class PayloadCollector
         static::$logs = [];
         static::$metadata = [];
         static::$sent = false;
+    }
+
+    /**
+     * Get current logs (for testing)
+     */
+    public static function getLogs(): array
+    {
+        return static::$logs;
     }
 
     /**

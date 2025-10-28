@@ -1,8 +1,8 @@
 <?php
 
-namespace ApexToolbox\Symfony\DependencyInjection\Compiler;
+namespace ApexToolbox\SymfonyLogger\DependencyInjection\Compiler;
 
-use ApexToolbox\Symfony\Handler\ApexToolboxLogHandler;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;

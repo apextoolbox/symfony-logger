@@ -14,3 +14,15 @@ services:
             $config: '%apex_toolbox%'
         tags:
             - { name: monolog.handler, method: handle }
+
+    ApexToolbox\Symfony\Service\ApexInitializer:
+        arguments:
+            $logger: '@logger'
+
+    # HTTP Client Request Tracking
+    ApexToolbox\Symfony\HttpClient\TrackedHttpClient:
+        decorates: 'http_client'
+        decoration_priority: 10
+        arguments:
+            $client: '@.inner'
+            $config: '%apex_toolbox%'

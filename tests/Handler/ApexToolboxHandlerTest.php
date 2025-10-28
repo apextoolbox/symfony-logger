@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\Handler;
+namespace ApexToolbox\SymfonyLogger\Tests\Handler;
 
-use ApexToolbox\Symfony\Handler\ApexToolboxLogHandler;
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\TestCase;

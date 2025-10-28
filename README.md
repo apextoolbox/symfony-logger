@@ -11,7 +11,7 @@ This is the official Symfony SDK for [Apex Toolbox](https://apextoolbox.com/) - 
 ### Install
 
 ```bash
-composer require apextoolbox/symfony
+composer require apextoolbox/symfony-logger
 ```
 
 ### Configure
@@ -27,11 +27,23 @@ APEX_TOOLBOX_TOKEN=your_token_here
 That's it! All logs, exceptions, and HTTP requests are automatically tracked:
 
 ```php
-// Logs are automatically sent
+// Manually log exceptions with context (no imports needed!)
+try {
+    processPayment($order);
+} catch (PaymentException $e) {
+    logException($e, ['order_id' => $order->id]);
+    throw $e;
+}
+
+// Or using the Apex facade
+use ApexToolbox\Symfony\Apex;
+Apex::logException($e, ['order_id' => $order->id]);
+
+// Standard Monolog logging works too
 $logger->info('User created', ['user_id' => 123]);
 $logger->error('Payment failed', ['order_id' => 456]);
 
-// Exceptions are automatically captured
+// Uncaught exceptions are automatically captured
 throw new Exception('Something went wrong');
 
 // HTTP requests are automatically monitored (api/* routes by default)

@@ -1,8 +1,8 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests;
+namespace ApexToolbox\SymfonyLogger\Tests;
 
-use ApexToolbox\Symfony\ApexToolboxBundle;
+use ApexToolbox\SymfonyLogger\ApexToolboxBundle;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;

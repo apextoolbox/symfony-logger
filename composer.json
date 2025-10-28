@@ -1,5 +1,5 @@
 {
-    "name": "apextoolbox/symfony",
+    "name": "apextoolbox/symfony-logger",
     "description": "Apex Toolbox Symfony Bundle",
     "type": "symfony-bundle",
     "license": "MIT",
@@ -13,12 +13,15 @@
     ],
     "autoload": {
         "psr-4": {
-            "ApexToolbox\\Symfony\\": "src/"
-        }
+            "ApexToolbox\\SymfonyLogger\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
-            "ApexToolbox\\Symfony\\Tests\\": "tests/"
+            "ApexToolbox\\SymfonyLogger\\Tests\\": "tests/"
         }
     },
     "require": {

@@ -1,10 +1,10 @@
 <?php
 
-namespace ApexToolbox\Symfony\EventListener;
+namespace ApexToolbox\SymfonyLogger\EventListener;
 
-use ApexToolbox\Symfony\Handler\ApexToolboxLogHandler;
-use ApexToolbox\Symfony\Handler\ApexToolboxExceptionHandler;
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxExceptionHandler;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;

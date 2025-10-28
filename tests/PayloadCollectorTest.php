@@ -1,8 +1,8 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests;
+namespace ApexToolbox\SymfonyLogger\Tests;
 
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Exception;

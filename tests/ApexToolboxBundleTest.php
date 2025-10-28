@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests;
+namespace ApexToolbox\SymfonyLogger\Tests;
 
-use ApexToolbox\Symfony\ApexToolboxBundle;
-use ApexToolbox\Symfony\DependencyInjection\ApexToolboxExtension;
+use ApexToolbox\SymfonyLogger\ApexToolboxBundle;
+use ApexToolbox\SymfonyLogger\DependencyInjection\ApexToolboxExtension;
 
 class ApexToolboxBundleTest extends AbstractTestCase
 {

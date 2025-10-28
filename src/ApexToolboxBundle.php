@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony;
+namespace ApexToolbox\SymfonyLogger;
 
-use ApexToolbox\Symfony\DependencyInjection\ApexToolboxExtension;
-use ApexToolbox\Symfony\DependencyInjection\Compiler\MonologHandlerPass;
+use ApexToolbox\SymfonyLogger\DependencyInjection\ApexToolboxExtension;
+use ApexToolbox\SymfonyLogger\DependencyInjection\Compiler\MonologHandlerPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 

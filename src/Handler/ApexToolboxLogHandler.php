@@ -1,8 +1,8 @@
 <?php
 
-namespace ApexToolbox\Symfony\Handler;
+namespace ApexToolbox\SymfonyLogger\Handler;
 
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
