@@ -1,0 +1,16 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    ApexToolbox\Symfony\EventListener\LoggerListener:
+        arguments:
+            $parameterBag: '@parameter_bag'
+        tags:
+            - { name: kernel.event_subscriber }
+
+    ApexToolbox\Symfony\Handler\ApexToolboxLogHandler:
+        arguments:
+            $config: '%apex_toolbox%'
+        tags:
+            - { name: monolog.handler, method: handle }

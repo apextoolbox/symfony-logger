@@ -1,0 +1,106 @@
+<?php
+
+namespace ApexToolbox\Symfony\DependencyInjection;
+
+use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\ConfigurationInterface;
+
+class Configuration implements ConfigurationInterface
+{
+    public function getConfigTreeBuilder(): TreeBuilder
+    {
+        $treeBuilder = new TreeBuilder('apex_toolbox');
+        $rootNode = $treeBuilder->getRootNode();
+
+        $rootNode
+            ->children()
+                ->booleanNode('enabled')
+                    ->defaultTrue()
+                    ->info('Enable or disable the logger')
+                ->end()
+                ->scalarNode('token')
+                    ->defaultValue('')
+                    ->info('Authentication token for the logger service')
+                ->end()
+                ->arrayNode('path_filters')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('include')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['api/*'])
+                            ->info('Paths to include in logging (supports wildcards)')
+                        ->end()
+                        ->arrayNode('exclude')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['api/health', 'api/ping'])
+                            ->info('Paths to exclude from logging (supports wildcards)')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('headers')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('include_sensitive')
+                            ->defaultFalse()
+                            ->info('Include sensitive headers like Authorization')
+                        ->end()
+                        ->arrayNode('exclude')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['authorization', 'x-api-key', 'cookie'])
+                            ->info('Headers to exclude from logging')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('body')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('max_size')
+                            ->defaultValue(10240)
+                            ->info('Maximum body size in bytes (10KB default)')
+                        ->end()
+                        ->arrayNode('exclude')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['password', 'password_confirmation', 'token', 'secret'])
+                            ->info('Fields to exclude from request body logging')
+                        ->end()
+                        ->arrayNode('mask')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['ssn', 'social_security', 'phone', 'email', 'address', 'postal_code', 'zip_code'])
+                            ->info('Fields to mask with asterisks in request body logging')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('response')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('exclude')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['password', 'token', 'secret'])
+                            ->info('Fields to exclude from response logging')
+                        ->end()
+                        ->arrayNode('mask')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['ssn', 'social_security', 'phone', 'email'])
+                            ->info('Fields to mask with asterisks in response logging')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('universal_logging')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')
+                            ->defaultFalse()
+                            ->info('Enable universal log capture for console and queue contexts')
+                        ->end()
+                        ->arrayNode('types')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['http', 'console', 'queue'])
+                            ->info('Log types to capture (http, console, queue)')
+                        ->end()
+                    ->end()
+                ->end()
+            ->end();
+
+        return $treeBuilder;
+    }
+}
