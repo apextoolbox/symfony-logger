@@ -3,6 +3,7 @@
 namespace ApexToolbox\SymfonyLogger\HttpClient;
 
 use ApexToolbox\SymfonyLogger\PayloadCollector;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
@@ -22,6 +23,10 @@ class TrackedHttpClient implements HttpClientInterface
         $this->enabled = $config['track_http_requests'] ?? true;
     }
 
+    /**
+     * @throws Throwable
+     * @throws TransportExceptionInterface
+     */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
         if (!$this->enabled) {
@@ -29,8 +34,6 @@ class TrackedHttpClient implements HttpClientInterface
         }
 
         $startTime = microtime(true);
-        $error = null;
-        $response = null;
 
         try {
             $response = $this->client->request($method, $url, $options);

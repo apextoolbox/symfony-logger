@@ -10,10 +10,12 @@ use Throwable;
 
 class PayloadCollector
 {
+    private static ?string $requestId = null;
     private static ?array $requestData = null;
     private static ?array $responseData = null;
     private static ?array $exceptionData = null;
     private static array $logs = [];
+    private static array $queries = [];
     private static array $metadata = [];
     private static bool $sent = false;
     private static array $config = [];
@@ -24,6 +26,34 @@ class PayloadCollector
     public static function configure(array $config): void
     {
         static::$config = $config;
+    }
+
+    /**
+     * Set request ID (generated at request start)
+     */
+    public static function setRequestId(string $requestId): void
+    {
+        static::$requestId = $requestId;
+    }
+
+    /**
+     * Get current request ID
+     */
+    public static function getRequestId(): ?string
+    {
+        return static::$requestId;
+    }
+
+    /**
+     * Add query entry
+     */
+    public static function addQuery(array $queryData): void
+    {
+        if (!static::isEnabled()) {
+            return;
+        }
+
+        static::$queries[] = $queryData;
     }
 
     /**
@@ -90,7 +120,8 @@ class PayloadCollector
         }
 
         // Don't send if no meaningful data collected
-        if (!static::$requestData && !static::$exceptionData && empty(static::$logs)) {
+        // Send if we have: request data, exception, logs, OR queries
+        if (!static::$requestData && !static::$exceptionData && empty(static::$logs) && empty(static::$queries)) {
             return;
         }
 
@@ -108,10 +139,12 @@ class PayloadCollector
      */
     public static function clear(): void
     {
+        static::$requestId = null;
         static::$requestData = null;
         static::$responseData = null;
         static::$exceptionData = null;
         static::$logs = [];
+        static::$queries = [];
         static::$metadata = [];
         static::$sent = false;
     }
@@ -141,6 +174,11 @@ class PayloadCollector
             'timestamp' => static::$metadata['timestamp'] ?? (new \DateTime())->format('c'),
         ];
 
+        // Add request ID if available (generated at request start)
+        if (static::$requestId) {
+            $payload['request_id'] = static::$requestId;
+        }
+
         // Only add logs if we have some
         if (!empty(static::$logs)) {
             $payload['logs_trace_id'] = Uuid::v7()->toRfc4122();
@@ -160,6 +198,11 @@ class PayloadCollector
         // Add exception data if available
         if (static::$exceptionData) {
             $payload['exception'] = static::$exceptionData;
+        }
+
+        // Add queries if we have some
+        if (!empty(static::$queries)) {
+            $payload['queries'] = static::$queries;
         }
 
         return $payload;

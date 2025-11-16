@@ -3,26 +3,31 @@ services:
         autowire: true
         autoconfigure: true
 
-    ApexToolbox\Symfony\EventListener\LoggerListener:
+    ApexToolbox\SymfonyLogger\EventListener\LoggerListener:
         arguments:
             $parameterBag: '@parameter_bag'
         tags:
             - { name: kernel.event_subscriber }
 
-    ApexToolbox\Symfony\Handler\ApexToolboxLogHandler:
+    ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler:
         arguments:
             $config: '%apex_toolbox%'
         tags:
             - { name: monolog.handler, method: handle }
 
-    ApexToolbox\Symfony\Service\ApexInitializer:
+    ApexToolbox\SymfonyLogger\Service\ApexInitializer:
         arguments:
             $logger: '@logger'
 
     # HTTP Client Request Tracking
-    ApexToolbox\Symfony\HttpClient\TrackedHttpClient:
+    ApexToolbox\SymfonyLogger\HttpClient\TrackedHttpClient:
         decorates: 'http_client'
         decoration_priority: 10
         arguments:
             $client: '@.inner'
+            $config: '%apex_toolbox%'
+
+    # Query Logger Service
+    ApexToolbox\SymfonyLogger\Service\QueryLoggerService:
+        arguments:
             $config: '%apex_toolbox%'

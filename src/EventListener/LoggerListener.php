@@ -5,8 +5,11 @@ namespace ApexToolbox\SymfonyLogger\EventListener;
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxExceptionHandler;
 use ApexToolbox\SymfonyLogger\PayloadCollector;
+use ApexToolbox\SymfonyLogger\Service\QueryLoggerService;
+use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\ConsoleEvents;
+use Symfony\Component\Messenger\Event\WorkerMessageReceivedEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -17,15 +20,23 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\Uid\Uuid;
 
 class LoggerListener implements EventSubscriberInterface
 {
     private array $config;
     private ?float $startTime = null;
+    private ?QueryLoggerService $queryLoggerService = null;
+    private ?Connection $connection = null;
 
-    public function __construct(ParameterBagInterface $parameterBag)
-    {
+    public function __construct(
+        ParameterBagInterface $parameterBag,
+        ?QueryLoggerService $queryLoggerService = null,
+        ?Connection $connection = null
+    ) {
         $this->config = $parameterBag->get('apex_toolbox') ?? [];
+        $this->queryLoggerService = $queryLoggerService;
+        $this->connection = $connection;
         PayloadCollector::configure($this->config);
     }
 
@@ -37,6 +48,10 @@ class LoggerListener implements EventSubscriberInterface
             KernelEvents::EXCEPTION => ['onKernelException', 0],
             ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
         ];
+
+        if (class_exists(WorkerMessageReceivedEvent::class)) {
+            $events[WorkerMessageReceivedEvent::class] = ['onWorkerMessageReceived', 0];
+        }
 
         if (class_exists(WorkerMessageHandledEvent::class)) {
             $events[WorkerMessageHandledEvent::class] = ['onWorkerMessageHandled', 0];
@@ -56,6 +71,15 @@ class LoggerListener implements EventSubscriberInterface
         }
 
         $this->startTime = microtime(true);
+
+        // Generate unique request ID for correlation
+        $requestId = Uuid::v7()->toRfc4122();
+        PayloadCollector::setRequestId($requestId);
+
+        // Enable query logging if Doctrine is available
+        if ($this->queryLoggerService && $this->connection) {
+            $this->queryLoggerService->enable($this->connection);
+        }
     }
 
     public function onKernelResponse(ResponseEvent $event): void
@@ -67,10 +91,23 @@ class LoggerListener implements EventSubscriberInterface
         $request = $event->getRequest();
         $response = $event->getResponse();
 
+        // Detect N+1 queries before sending (always, even if request not tracked)
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->detectAndMarkN1Queries();
+        }
+
+        // Only collect request/response data if path matches filters
         if ($this->shouldTrack($request)) {
             PayloadCollector::collect($request, $response, $this->startTime);
-            PayloadCollector::send();
-            PayloadCollector::clear();
+        }
+
+        // Always send if we have ANY data (logs, exceptions, queries, or tracked request)
+        PayloadCollector::send();
+        PayloadCollector::clear();
+
+        // Clear query logger for next request
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->clear();
         }
     }
 
@@ -80,27 +117,78 @@ class LoggerListener implements EventSubscriberInterface
             return;
         }
 
-        if ($this->shouldTrack($event->getRequest())) {
-            ApexToolboxExceptionHandler::capture($event->getThrowable());
-        }
+        // Always capture exceptions, regardless of path filters
+        // Exceptions are critical and should never be lost
+        ApexToolboxExceptionHandler::capture($event->getThrowable());
     }
 
     public function onConsoleCommand(ConsoleCommandEvent $event): void
     {
+        // Generate unique request ID for console command tracking
+        $requestId = Uuid::v7()->toRfc4122();
+        PayloadCollector::setRequestId($requestId);
+
+        // Enable query logging if Doctrine is available
+        if ($this->queryLoggerService && $this->connection) {
+            $this->queryLoggerService->enable($this->connection);
+        }
+
         // Register shutdown function to flush buffer after console command
         register_shutdown_function(function () {
+            // Detect N+1 queries before sending
+            if ($this->queryLoggerService) {
+                $this->queryLoggerService->detectAndMarkN1Queries();
+            }
+
             ApexToolboxLogHandler::flushBuffer($this->config);
+
+            // Clear query logger
+            if ($this->queryLoggerService) {
+                $this->queryLoggerService->clear();
+            }
         });
+    }
+
+    public function onWorkerMessageReceived(WorkerMessageReceivedEvent $event): void
+    {
+        // Generate unique request ID for each queue message
+        $requestId = Uuid::v7()->toRfc4122();
+        PayloadCollector::setRequestId($requestId);
+
+        // Enable query logging if Doctrine is available
+        if ($this->queryLoggerService && $this->connection) {
+            $this->queryLoggerService->enable($this->connection);
+        }
     }
 
     public function onWorkerMessageHandled(WorkerMessageHandledEvent $event): void
     {
+        // Detect N+1 queries before sending
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->detectAndMarkN1Queries();
+        }
+
         ApexToolboxLogHandler::flushBuffer($this->config);
+
+        // Clear query logger
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->clear();
+        }
     }
 
     public function onWorkerMessageFailed(WorkerMessageFailedEvent $event): void
     {
+        // Detect N+1 queries before sending
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->detectAndMarkN1Queries();
+        }
+
         ApexToolboxLogHandler::flushBuffer($this->config);
+
+        // Clear query logger
+        if ($this->queryLoggerService) {
+            $this->queryLoggerService->clear();
+        }
     }
 
     protected function shouldTrack(Request $request): bool
