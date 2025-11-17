@@ -49,12 +49,21 @@ class TrackedHttpClient implements HttpClientInterface
         }
     }
 
-    public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface
+    /**
+     * @param ResponseInterface|iterable $responses
+     * @param float|null $timeout
+     * @return ResponseStreamInterface
+     */
+    public function stream($responses, ?float $timeout = null): ResponseStreamInterface
     {
         return $this->client->stream($responses, $timeout);
     }
 
-    public function withOptions(array $options): static
+    /**
+     * @param array $options
+     * @return self
+     */
+    public function withOptions(array $options): self
     {
         $clone = clone $this;
         $clone->client = $this->client->withOptions($options);

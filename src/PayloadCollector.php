@@ -328,7 +328,7 @@ class PayloadCollector
         $normalizedPath = str_replace('\\', '/', $filePath);
 
         // Check if path contains /vendor/
-        return !str_contains($normalizedPath, '/vendor/');
+        return strpos($normalizedPath, '/vendor/') === false;
     }
 
     /**
@@ -388,13 +388,15 @@ class PayloadCollector
 
     /**
      * Get response content with filtering
+     *
+     * @return false|array|string
      */
-    private static function getResponseContent(Response $response): false|array|string
+    private static function getResponseContent(Response $response)
     {
         $content = $response->getContent();
 
         if ($response->headers->get('content-type') &&
-            str_contains($response->headers->get('content-type'), 'application/json')) {
+            strpos($response->headers->get('content-type'), 'application/json') !== false) {
 
             $decoded = json_decode($content, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
