@@ -73,6 +73,7 @@ class PayloadCollector
             'headers' => static::filterHeaders($request->headers->all()),
             'payload' => static::filterBody($request->request->all()),
             'ip_address' => static::getRealIpAddress($request),
+            'user_agent' => $request->headers->get('User-Agent'),
         ];
 
         static::$responseData = [
@@ -223,7 +224,7 @@ class PayloadCollector
                 'Authorization: Bearer ' . static::$config['token'],
                 'Content-Type: application/json',
             ],
-            CURLOPT_TIMEOUT => 2,
+            CURLOPT_TIMEOUT => 5,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_SSL_VERIFYPEER => false,
         ]);

@@ -4,6 +4,8 @@ namespace ApexToolbox\SymfonyLogger\Handler;
 
 use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Handler\AbstractProcessingHandler;
+use Monolog\Processor\IntrospectionProcessor;
+use Monolog\Logger;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -26,6 +28,9 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
 
         $this->config = $config;
         $this->httpClient = $httpClient ?? HttpClient::create(['timeout' => 2]);
+
+        // Add introspection processor to capture source information (file, line, class, function)
+        $this->pushProcessor(new IntrospectionProcessor(Logger::DEBUG, ['Monolog\\', 'Symfony\\Component\\HttpKernel\\Log\\']));
 
         // Configure PayloadCollector
         PayloadCollector::configure($config);
@@ -58,6 +63,16 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
         // Handle both Monolog 2.x (array) and 3.x (LogRecord/array)
         $isMonolog3 = is_object($record);
 
+        // Extract source information from extra (if available from IntrospectionProcessor)
+        $extra = $isMonolog3 ? ($record->extra ?? []) : ($record['extra'] ?? []);
+
+        // Get source information
+        $sourceClass = $extra['class'] ?? null;
+        $function = $extra['function'] ?? null;
+        $callType = $extra['type'] ?? null;
+        $file = $extra['file'] ?? null;
+        $line = $extra['line'] ?? null;
+
         return [
             'level' => strtoupper($isMonolog3 ? $record->level->getName() : $record['level_name']),
             'message' => $isMonolog3 ? $record->message : $record['message'],
@@ -66,15 +81,10 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
                 ? $record->datetime->format('Y-m-d H:i:s')
                 : $record['datetime']->format('Y-m-d H:i:s'),
             'channel' => $isMonolog3 ? $record->channel : $record['channel'],
-            'source_class' => $isMonolog3
-                ? ($record->extra['class'] ?? null)
-                : ($record['extra']['class'] ?? null),
-            'function' => $isMonolog3
-                ? ($record->extra['function'] ?? null)
-                : ($record['extra']['function'] ?? null),
-            'callType' => $isMonolog3
-                ? ($record->extra['callType'] ?? null)
-                : ($record['extra']['callType'] ?? null),
+            'source_class' => $sourceClass,
+            'function' => $function,
+            'file' => $file,
+            'line' => $line,
         ];
     }
 
