@@ -5,7 +5,7 @@ namespace ApexToolbox\SymfonyLogger;
 use DateTime;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Uid\Uuid;
+use Ramsey\Uuid\Uuid;
 use Throwable;
 
 class PayloadCollector
@@ -182,7 +182,7 @@ class PayloadCollector
 
         // Only add logs if we have some
         if (!empty(static::$logs)) {
-            $payload['logs_trace_id'] = Uuid::v4()->toRfc4122();
+            $payload['logs_trace_id'] = Uuid::uuid7()->toString();
             $payload['logs'] = static::$logs;
         }
 

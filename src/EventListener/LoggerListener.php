@@ -20,7 +20,7 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use Symfony\Component\Uid\Uuid;
+use Ramsey\Uuid\Uuid;
 
 class LoggerListener implements EventSubscriberInterface
 {
@@ -72,8 +72,8 @@ class LoggerListener implements EventSubscriberInterface
 
         $this->startTime = microtime(true);
 
-        // Generate unique request ID for correlation
-        $requestId = Uuid::v4()->toRfc4122();
+        // Generate unique request ID for correlation (v7 is time-ordered)
+        $requestId = Uuid::uuid7()->toString();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available
@@ -124,8 +124,8 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onConsoleCommand(ConsoleCommandEvent $event): void
     {
-        // Generate unique request ID for console command tracking
-        $requestId = Uuid::v4()->toRfc4122();
+        // Generate unique request ID for console command tracking (v7 is time-ordered)
+        $requestId = Uuid::uuid7()->toString();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available
@@ -151,8 +151,8 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onWorkerMessageReceived(WorkerMessageReceivedEvent $event): void
     {
-        // Generate unique request ID for each queue message
-        $requestId = Uuid::v4()->toRfc4122();
+        // Generate unique request ID for each queue message (v7 is time-ordered)
+        $requestId = Uuid::uuid7()->toString();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available

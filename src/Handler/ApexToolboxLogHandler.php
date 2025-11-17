@@ -6,7 +6,6 @@ use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Processor\IntrospectionProcessor;
 use Monolog\Logger;
-use Symfony\Component\Uid\Uuid;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Throwable;
