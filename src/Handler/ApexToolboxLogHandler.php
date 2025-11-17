@@ -4,8 +4,6 @@ namespace ApexToolbox\SymfonyLogger\Handler;
 
 use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Handler\AbstractProcessingHandler;
-use Monolog\Level;
-use Monolog\LogRecord;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -16,7 +14,13 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
     private array $config;
     private HttpClientInterface $httpClient;
 
-    public function __construct(array $config, ?HttpClientInterface $httpClient = null, $level = Level::Debug, bool $bubble = true)
+    /**
+     * @param array $config
+     * @param HttpClientInterface|null $httpClient
+     * @param int|string $level Monolog 2: int, Monolog 3: Level enum
+     * @param bool $bubble
+     */
+    public function __construct(array $config, ?HttpClientInterface $httpClient = null, $level = 100, bool $bubble = true)
     {
         parent::__construct($level, $bubble);
 
@@ -27,7 +31,13 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
         PayloadCollector::configure($config);
     }
 
-    protected function write(LogRecord $record): void
+    /**
+     * Write log record (compatible with both Monolog 2.x and 3.x)
+     *
+     * @param array $record Monolog 2.x uses array, Monolog 3.x uses LogRecord but accepts array
+     * @return void
+     */
+    protected function write($record): void
     {
         if (!($this->config['token'] ?? null)) {
             return;
@@ -37,17 +47,34 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
         PayloadCollector::addLog($data);
     }
 
-    protected function prepareLogData(LogRecord $record): array
+    /**
+     * Prepare log data (compatible with both Monolog 2.x array and 3.x LogRecord)
+     *
+     * @param array $record
+     * @return array
+     */
+    protected function prepareLogData($record): array
     {
+        // Handle both Monolog 2.x (array) and 3.x (LogRecord/array)
+        $isMonolog3 = is_object($record);
+
         return [
-        'level' => strtoupper($record->level->getName()),
-            'message' => $record->message,
-            'context' => $record->context,
-            'timestamp' => $record->datetime->format('Y-m-d H:i:s'),
-            'channel' => $record->channel,
-            'source_class' => $record->extra['class'] ?? null,
-            'function' => $record->extra['function'] ?? null,
-            'callType' => $record->extra['callType'] ?? null,
+            'level' => strtoupper($isMonolog3 ? $record->level->getName() : $record['level_name']),
+            'message' => $isMonolog3 ? $record->message : $record['message'],
+            'context' => $isMonolog3 ? $record->context : ($record['context'] ?? []),
+            'timestamp' => $isMonolog3
+                ? $record->datetime->format('Y-m-d H:i:s')
+                : $record['datetime']->format('Y-m-d H:i:s'),
+            'channel' => $isMonolog3 ? $record->channel : $record['channel'],
+            'source_class' => $isMonolog3
+                ? ($record->extra['class'] ?? null)
+                : ($record['extra']['class'] ?? null),
+            'function' => $isMonolog3
+                ? ($record->extra['function'] ?? null)
+                : ($record['extra']['function'] ?? null),
+            'callType' => $isMonolog3
+                ? ($record->extra['callType'] ?? null)
+                : ($record['extra']['callType'] ?? null),
         ];
     }
 
