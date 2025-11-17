@@ -307,7 +307,10 @@ class LoggerListener implements EventSubscriberInterface
         return $filtered;
     }
 
-    protected function getResponseContent(Response $response): array|string|null
+    /**
+     * @return array|string|null
+     */
+    protected function getResponseContent(Response $response)
     {
         $content = $response->getContent();
         $maxSize = $this->config['body']['max_size'] ?? 10240;
