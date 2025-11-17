@@ -66,7 +66,8 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onKernelRequest(RequestEvent $event): void
     {
-        if (!$event->isMainRequest()) {
+        // Symfony 5.2 uses isMasterRequest(), 5.3+ uses isMainRequest()
+        if (!$this->isMainRequest($event)) {
             return;
         }
 
@@ -84,7 +85,8 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onKernelResponse(ResponseEvent $event): void
     {
-        if (!$event->isMainRequest()) {
+        // Symfony 5.2 uses isMasterRequest(), 5.3+ uses isMainRequest()
+        if (!$this->isMainRequest($event)) {
             return;
         }
 
@@ -113,7 +115,8 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onKernelException(ExceptionEvent $event): void
     {
-        if (!$event->isMainRequest()) {
+        // Symfony 5.2 uses isMasterRequest(), 5.3+ uses isMainRequest()
+        if (!$this->isMainRequest($event)) {
             return;
         }
 
@@ -338,5 +341,22 @@ class LoggerListener implements EventSubscriberInterface
 
         // Production endpoint - hardcoded (used by all users, including their local dev)
         return 'https://apextoolbox.com/api/v1/logs';
+    }
+
+    /**
+     * Compatibility helper for Symfony 5.2 (isMasterRequest) and 5.3+ (isMainRequest)
+     *
+     * @param RequestEvent|ResponseEvent|ExceptionEvent $event
+     * @return bool
+     */
+    private function isMainRequest($event): bool
+    {
+        // Symfony 5.3+ uses isMainRequest()
+        if (method_exists($event, 'isMainRequest')) {
+            return $event->isMainRequest();
+        }
+
+        // Symfony 5.2 and earlier use isMasterRequest()
+        return $event->isMasterRequest();
     }
 }
