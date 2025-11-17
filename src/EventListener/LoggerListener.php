@@ -74,7 +74,7 @@ class LoggerListener implements EventSubscriberInterface
         $this->startTime = microtime(true);
 
         // Generate unique request ID for correlation
-        $requestId = Uuid::v7()->toRfc4122();
+        $requestId = Uuid::v4()->toRfc4122();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available
@@ -128,7 +128,7 @@ class LoggerListener implements EventSubscriberInterface
     public function onConsoleCommand(ConsoleCommandEvent $event): void
     {
         // Generate unique request ID for console command tracking
-        $requestId = Uuid::v7()->toRfc4122();
+        $requestId = Uuid::v4()->toRfc4122();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available
@@ -155,7 +155,7 @@ class LoggerListener implements EventSubscriberInterface
     public function onWorkerMessageReceived(WorkerMessageReceivedEvent $event): void
     {
         // Generate unique request ID for each queue message
-        $requestId = Uuid::v7()->toRfc4122();
+        $requestId = Uuid::v4()->toRfc4122();
         PayloadCollector::setRequestId($requestId);
 
         // Enable query logging if Doctrine is available

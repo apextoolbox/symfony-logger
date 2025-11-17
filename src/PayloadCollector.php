@@ -181,7 +181,7 @@ class PayloadCollector
 
         // Only add logs if we have some
         if (!empty(static::$logs)) {
-            $payload['logs_trace_id'] = Uuid::v7()->toRfc4122();
+            $payload['logs_trace_id'] = Uuid::v4()->toRfc4122();
             $payload['logs'] = static::$logs;
         }
 
