@@ -388,15 +388,13 @@ class PayloadCollector
 
     /**
      * Get response content with filtering
-     *
-     * @return false|array|string
      */
-    private static function getResponseContent(Response $response)
+    private static function getResponseContent(Response $response): false|array|string
     {
         $content = $response->getContent();
 
         if ($response->headers->get('content-type') &&
-            strpos($response->headers->get('content-type'), 'application/json') !== false) {
+            str_contains($response->headers->get('content-type'), 'application/json')) {
 
             $decoded = json_decode($content, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {

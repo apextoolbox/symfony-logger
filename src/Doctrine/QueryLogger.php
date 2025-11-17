@@ -99,7 +99,7 @@ class QueryLogger implements SQLLogger
             }
 
             // Skip vendor files
-            if (strpos($frame['file'], '/vendor/') !== false) {
+            if (str_contains($frame['file'], '/vendor/')) {
                 continue;
             }
 
