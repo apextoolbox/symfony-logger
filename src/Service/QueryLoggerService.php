@@ -3,17 +3,23 @@
 namespace ApexToolbox\SymfonyLogger\Service;
 
 use ApexToolbox\SymfonyLogger\Doctrine\QueryLogger;
+use ApexToolbox\SymfonyLogger\Doctrine\QueryMiddleware;
 use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Doctrine\DBAL\Connection;
 
 class QueryLoggerService
 {
     private ?QueryLogger $queryLogger = null;
+    private ?QueryMiddleware $queryMiddleware = null;
     private bool $enabled = false;
+    private bool $isDbal4 = false;
 
     public function __construct(array $config)
     {
         $this->enabled = $config['enabled'] ?? true;
+
+        // Detect DBAL version: 4.x removed SQLLogger interface
+        $this->isDbal4 = !interface_exists('Doctrine\DBAL\Logging\SQLLogger');
     }
 
     public function enable(Connection $connection): void
@@ -22,36 +28,54 @@ class QueryLoggerService
             return;
         }
 
-        if (!$this->queryLogger) {
-            $this->queryLogger = new QueryLogger();
+        if ($this->isDbal4) {
+            // DBAL 4.x: Use middleware API
+            if (!$this->queryMiddleware) {
+                $this->queryMiddleware = new QueryMiddleware();
+                $connection->getConfiguration()->setMiddlewares([$this->queryMiddleware]);
+            }
+        } else {
+            // DBAL 3.x: Use SQLLogger API
+            if (!$this->queryLogger) {
+                $this->queryLogger = new QueryLogger();
+            }
+            $connection->getConfiguration()->setSQLLogger($this->queryLogger);
         }
-
-        // Attach logger to Doctrine connection
-        $connection->getConfiguration()->setSQLLogger($this->queryLogger);
     }
 
     public function detectAndMarkN1Queries(): void
     {
-        if (!$this->queryLogger) {
-            return;
+        if ($this->isDbal4) {
+            if ($this->queryMiddleware) {
+                $this->queryMiddleware->detectN1Queries();
+            }
+        } else {
+            if ($this->queryLogger) {
+                $this->queryLogger->detectN1Queries();
+            }
         }
-
-        // Detect N+1 queries
-        $n1Groups = $this->queryLogger->detectN1Queries();
-
-        // The queries are already updated with is_n1 flags in the QueryLogger
-        // They're already added to PayloadCollector, so nothing more to do here
     }
 
     public function clear(): void
     {
-        if ($this->queryLogger) {
-            $this->queryLogger->clear();
+        if ($this->isDbal4) {
+            if ($this->queryMiddleware) {
+                $this->queryMiddleware->clear();
+            }
+        } else {
+            if ($this->queryLogger) {
+                $this->queryLogger->clear();
+            }
         }
     }
 
     public function getQueryLogger(): ?QueryLogger
     {
         return $this->queryLogger;
+    }
+
+    public function getQueryMiddleware(): ?QueryMiddleware
+    {
+        return $this->queryMiddleware;
     }
 }

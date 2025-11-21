@@ -337,6 +337,6 @@ class LoggerListener implements EventSubscriberInterface
         }
 
         // Production endpoint - hardcoded (used by all users, including their local dev)
-        return 'https://apextoolbox.com/api/v1/logs';
+        return 'https://apextoolbox.com/api/v1/telemetry';
     }
 }

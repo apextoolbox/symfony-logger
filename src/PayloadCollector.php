@@ -167,33 +167,39 @@ class PayloadCollector
     }
 
     /**
-     * Build unified payload
+     * Build unified payload for the telemetry API
+     *
+     * New API structure: trace_id, request (containing both request + response data), logs, exception
      */
     private static function buildPayload(): array
     {
-        $payload = [
-            'timestamp' => static::$metadata['timestamp'] ?? (new \DateTime())->format('c'),
-        ];
+        $payload = [];
 
-        // Add request ID if available (generated at request start)
-        if (static::$requestId) {
-            $payload['request_id'] = static::$requestId;
+        // Add trace_id at top level (renamed from logs_trace_id)
+        $payload['trace_id'] = Uuid::uuid7()->toString();
+
+        // Build combined request object (includes both request AND response data)
+        if (static::$requestData || static::$responseData) {
+            $requestObject = [];
+
+            // Add request data fields
+            if (static::$requestData) {
+                $requestObject = array_merge($requestObject, static::$requestData);
+            }
+
+            // Add response data fields (status_code, response, duration)
+            if (static::$responseData) {
+                $requestObject['status_code'] = static::$responseData['status_code'];
+                $requestObject['response'] = static::$responseData['response'];
+                $requestObject['duration'] = static::$responseData['duration'];
+            }
+
+            $payload['request'] = $requestObject;
         }
 
-        // Only add logs if we have some
+        // Add logs if we have some
         if (!empty(static::$logs)) {
-            $payload['logs_trace_id'] = Uuid::uuid7()->toString();
             $payload['logs'] = static::$logs;
-        }
-
-        // Add request data if available
-        if (static::$requestData) {
-            $payload = array_merge($payload, static::$requestData);
-        }
-
-        // Add response data if available
-        if (static::$responseData) {
-            $payload = array_merge($payload, static::$responseData);
         }
 
         // Add exception data if available
@@ -242,7 +248,7 @@ class PayloadCollector
             return $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'];
         }
 
-        return 'https://apextoolbox.com/api/v1/logs';
+        return 'https://apextoolbox.com/api/v1/telemetry';
     }
 
     /**

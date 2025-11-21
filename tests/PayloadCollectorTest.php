@@ -335,7 +335,7 @@ class PayloadCollectorTest extends TestCase
         $this->assertEmpty($logs);
     }
 
-    public function test_build_payload_includes_logs_trace_id_when_logs_present()
+    public function test_build_payload_includes_trace_id_and_logs()
     {
         $config = [
             'enabled' => true,
@@ -351,9 +351,56 @@ class PayloadCollectorTest extends TestCase
         $buildPayloadMethod->setAccessible(true);
         $payload = $buildPayloadMethod->invoke(null);
 
-        $this->assertArrayHasKey('logs_trace_id', $payload);
+        // trace_id is now always at top level (renamed from logs_trace_id)
+        $this->assertArrayHasKey('trace_id', $payload);
         $this->assertArrayHasKey('logs', $payload);
         $this->assertCount(1, $payload['logs']);
+    }
+
+    public function test_build_payload_groups_request_and_response_data()
+    {
+        $config = [
+            'enabled' => true,
+            'token' => 'test-token',
+            'headers' => ['exclude' => []],
+            'body' => ['exclude' => [], 'mask' => []],
+            'response' => ['exclude' => [], 'mask' => []]
+        ];
+
+        PayloadCollector::configure($config);
+
+        $request = Request::create('/api/test', 'POST', ['key' => 'value']);
+        $response = new Response('{"result": "ok"}', 200, ['Content-Type' => 'application/json']);
+
+        $startTime = microtime(true);
+        $endTime = $startTime + 0.1; // 100ms
+
+        PayloadCollector::collect($request, $response, $startTime, $endTime);
+
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $buildPayloadMethod = $reflection->getMethod('buildPayload');
+        $buildPayloadMethod->setAccessible(true);
+        $payload = $buildPayloadMethod->invoke(null);
+
+        // Verify trace_id is at top level
+        $this->assertArrayHasKey('trace_id', $payload);
+
+        // Verify request object contains both request AND response data
+        $this->assertArrayHasKey('request', $payload);
+        $requestData = $payload['request'];
+
+        // Request fields
+        $this->assertEquals('POST', $requestData['method']);
+        $this->assertEquals('/api/test', $requestData['uri']);
+        $this->assertArrayHasKey('headers', $requestData);
+        $this->assertArrayHasKey('payload', $requestData);
+        $this->assertArrayHasKey('ip_address', $requestData);
+        $this->assertArrayHasKey('user_agent', $requestData);
+
+        // Response fields (now inside request object)
+        $this->assertEquals(200, $requestData['status_code']);
+        $this->assertArrayHasKey('response', $requestData);
+        $this->assertEqualsWithDelta(100, $requestData['duration'], 1);
     }
 
     public function test_recursively_filter_sensitive_data_excludes_fields()
