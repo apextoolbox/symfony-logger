@@ -91,9 +91,9 @@ class LoggerListener implements EventSubscriberInterface
         $request = $event->getRequest();
         $response = $event->getResponse();
 
-        // Detect N+1 queries before sending (always, even if request not tracked)
+        // Flush queries to backend for analysis
         if ($this->queryLoggerService) {
-            $this->queryLoggerService->detectAndMarkN1Queries();
+            $this->queryLoggerService->flush();
         }
 
         // Only collect request/response data if path matches filters
@@ -119,7 +119,7 @@ class LoggerListener implements EventSubscriberInterface
 
         // Always capture exceptions, regardless of path filters
         // Exceptions are critical and should never be lost
-        ApexToolboxExceptionHandler::capture($event->getThrowable());
+        ApexToolboxExceptionHandler::logException($event->getThrowable());
     }
 
     public function onConsoleCommand(ConsoleCommandEvent $event): void
@@ -135,9 +135,9 @@ class LoggerListener implements EventSubscriberInterface
 
         // Register shutdown function to flush buffer after console command
         register_shutdown_function(function () {
-            // Detect N+1 queries before sending
+            // Flush queries to backend for analysis
             if ($this->queryLoggerService) {
-                $this->queryLoggerService->detectAndMarkN1Queries();
+                $this->queryLoggerService->flush();
             }
 
             ApexToolboxLogHandler::flushBuffer($this->config);
@@ -163,9 +163,9 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onWorkerMessageHandled(WorkerMessageHandledEvent $event): void
     {
-        // Detect N+1 queries before sending
+        // Flush queries to backend for analysis
         if ($this->queryLoggerService) {
-            $this->queryLoggerService->detectAndMarkN1Queries();
+            $this->queryLoggerService->flush();
         }
 
         ApexToolboxLogHandler::flushBuffer($this->config);
@@ -178,9 +178,9 @@ class LoggerListener implements EventSubscriberInterface
 
     public function onWorkerMessageFailed(WorkerMessageFailedEvent $event): void
     {
-        // Detect N+1 queries before sending
+        // Flush queries to backend for analysis
         if ($this->queryLoggerService) {
-            $this->queryLoggerService->detectAndMarkN1Queries();
+            $this->queryLoggerService->flush();
         }
 
         ApexToolboxLogHandler::flushBuffer($this->config);

@@ -29,6 +29,9 @@ class HelpersTest extends AbstractTestCase
             }));
 
         logException($exception);
+
+        // Mockery verification counts as assertion
+        $this->addToAssertionCount(1);
     }
 
     public function testLogExceptionHelperWithContext(): void
@@ -45,5 +48,8 @@ class HelpersTest extends AbstractTestCase
             }));
 
         logException($exception, $context);
+
+        // Mockery verification counts as assertion
+        $this->addToAssertionCount(1);
     }
 }

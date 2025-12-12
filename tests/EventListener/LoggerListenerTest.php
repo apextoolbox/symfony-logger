@@ -1,10 +1,10 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\EventListener;
+namespace ApexToolbox\SymfonyLogger\Tests\EventListener;
 
-use ApexToolbox\Symfony\EventListener\LoggerListener;
-use ApexToolbox\Symfony\Handler\ApexToolboxLogHandler;
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;

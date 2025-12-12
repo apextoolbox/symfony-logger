@@ -29,6 +29,9 @@ class ApexTest extends AbstractTestCase
             }));
 
         Apex::logException($exception);
+
+        // Mockery verification counts as assertion
+        $this->addToAssertionCount(1);
     }
 
     public function testLogExceptionWithContext(): void
@@ -45,5 +48,8 @@ class ApexTest extends AbstractTestCase
             }));
 
         Apex::logException($exception, $context);
+
+        // Mockery verification counts as assertion
+        $this->addToAssertionCount(1);
     }
 }

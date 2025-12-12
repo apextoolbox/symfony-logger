@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\HttpClient;
+namespace ApexToolbox\SymfonyLogger\Tests\HttpClient;
 
-use ApexToolbox\Symfony\HttpClient\TrackedHttpClient;
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\HttpClient\TrackedHttpClient;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -15,7 +15,7 @@ class TrackedHttpClientTest extends TestCase
         parent::setUp();
 
         // Configure and clear PayloadCollector before each test
-        PayloadCollector::configure(['token' => 'test-token']);
+        PayloadCollector::configure(['token' => 'test-token', 'enabled' => true]);
         PayloadCollector::clear();
     }
 
@@ -31,15 +31,13 @@ class TrackedHttpClientTest extends TestCase
         // Consume the response to trigger tracking
         $response->getContent();
 
-        $logs = PayloadCollector::getLogs();
+        $requests = PayloadCollector::getOutgoingRequests();
 
-        $this->assertCount(1, $logs);
-        $this->assertEquals('http_request', $logs[0]['type']);
-        $this->assertEquals('GET', $logs[0]['method']);
-        $this->assertEquals('https://api.example.com/test', $logs[0]['url']);
-        $this->assertEquals(200, $logs[0]['status_code']);
-        $this->assertTrue($logs[0]['success']);
-        $this->assertIsFloat($logs[0]['duration_ms']);
+        $this->assertCount(1, $requests);
+        $this->assertEquals('GET', $requests[0]['method']);
+        $this->assertEquals('https://api.example.com/test', $requests[0]['uri']);
+        $this->assertEquals(200, $requests[0]['status_code']);
+        $this->assertIsFloat($requests[0]['duration']);
     }
 
     public function testTracksFailedRequest(): void
@@ -54,14 +52,12 @@ class TrackedHttpClientTest extends TestCase
         // Consume the response
         $response->getContent(false); // false to not throw on error
 
-        $logs = PayloadCollector::getLogs();
+        $requests = PayloadCollector::getOutgoingRequests();
 
-        $this->assertCount(1, $logs);
-        $this->assertEquals('http_request', $logs[0]['type']);
-        $this->assertEquals('POST', $logs[0]['method']);
-        $this->assertEquals('https://api.example.com/error', $logs[0]['url']);
-        $this->assertEquals(500, $logs[0]['status_code']);
-        $this->assertFalse($logs[0]['success']);
+        $this->assertCount(1, $requests);
+        $this->assertEquals('POST', $requests[0]['method']);
+        $this->assertEquals('https://api.example.com/error', $requests[0]['uri']);
+        $this->assertEquals(500, $requests[0]['status_code']);
     }
 
     public function testDoesNotTrackWhenDisabled(): void
@@ -76,9 +72,9 @@ class TrackedHttpClientTest extends TestCase
         // Consume the response
         $response->getContent();
 
-        $logs = PayloadCollector::getLogs();
+        $requests = PayloadCollector::getOutgoingRequests();
 
-        $this->assertCount(0, $logs);
+        $this->assertCount(0, $requests);
     }
 
     public function testTracksMultipleRequests(): void
@@ -100,21 +96,18 @@ class TrackedHttpClientTest extends TestCase
         $response3 = $trackedClient->request('DELETE', 'https://api.example.com/test3');
         $response3->getContent(false);
 
-        $logs = PayloadCollector::getLogs();
+        $requests = PayloadCollector::getOutgoingRequests();
 
-        $this->assertCount(3, $logs);
+        $this->assertCount(3, $requests);
 
-        $this->assertEquals('GET', $logs[0]['method']);
-        $this->assertEquals(200, $logs[0]['status_code']);
-        $this->assertTrue($logs[0]['success']);
+        $this->assertEquals('GET', $requests[0]['method']);
+        $this->assertEquals(200, $requests[0]['status_code']);
 
-        $this->assertEquals('POST', $logs[1]['method']);
-        $this->assertEquals(201, $logs[1]['status_code']);
-        $this->assertTrue($logs[1]['success']);
+        $this->assertEquals('POST', $requests[1]['method']);
+        $this->assertEquals(201, $requests[1]['status_code']);
 
-        $this->assertEquals('DELETE', $logs[2]['method']);
-        $this->assertEquals(404, $logs[2]['status_code']);
-        $this->assertFalse($logs[2]['success']);
+        $this->assertEquals('DELETE', $requests[2]['method']);
+        $this->assertEquals(404, $requests[2]['status_code']);
     }
 
     public function testWithOptionsPreservesTracking(): void
@@ -129,9 +122,26 @@ class TrackedHttpClientTest extends TestCase
         $response = $newClient->request('GET', 'https://api.example.com/test');
         $response->getContent();
 
-        $logs = PayloadCollector::getLogs();
+        $requests = PayloadCollector::getOutgoingRequests();
 
-        $this->assertCount(1, $logs);
-        $this->assertEquals('http_request', $logs[0]['type']);
+        $this->assertCount(1, $requests);
+        $this->assertEquals('GET', $requests[0]['method']);
+    }
+
+    public function testSkipsApextoolboxRequests(): void
+    {
+        $mockClient = new MockHttpClient([
+            new MockResponse('{"data": "test"}', ['http_code' => 200])
+        ]);
+
+        $trackedClient = new TrackedHttpClient($mockClient);
+        $response = $trackedClient->request('GET', 'https://apextoolbox.com/api/v1/telemetry');
+
+        // Consume the response
+        $response->getContent();
+
+        $requests = PayloadCollector::getOutgoingRequests();
+
+        $this->assertCount(0, $requests);
     }
 }

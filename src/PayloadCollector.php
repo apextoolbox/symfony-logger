@@ -16,6 +16,7 @@ class PayloadCollector
     private static ?array $exceptionData = null;
     private static array $logs = [];
     private static array $queries = [];
+    private static array $outgoingRequests = [];
     private static array $metadata = [];
     private static bool $sent = false;
     private static array $config = [];
@@ -68,6 +69,7 @@ class PayloadCollector
         $endTime = $endTime ?: microtime(true);
 
         static::$requestData = [
+            'direction' => 'incoming',
             'method' => $request->getMethod(),
             'uri' => $request->getRequestUri(),
             'headers' => static::filterHeaders($request->headers->all()),
@@ -100,6 +102,34 @@ class PayloadCollector
     }
 
     /**
+     * Add outgoing HTTP request
+     */
+    public static function addOutgoingRequest(array $requestData): void
+    {
+        if (!static::isEnabled()) {
+            return;
+        }
+
+        static::$outgoingRequests[] = $requestData;
+    }
+
+    /**
+     * Get queries (for testing)
+     */
+    public static function getQueries(): array
+    {
+        return static::$queries;
+    }
+
+    /**
+     * Get outgoing requests (for testing)
+     */
+    public static function getOutgoingRequests(): array
+    {
+        return static::$outgoingRequests;
+    }
+
+    /**
      * Set exception data
      */
     public static function setException(Throwable $exception): void
@@ -121,8 +151,7 @@ class PayloadCollector
         }
 
         // Don't send if no meaningful data collected
-        // Send if we have: request data, exception, logs, OR queries
-        if (!static::$requestData && !static::$exceptionData && empty(static::$logs) && empty(static::$queries)) {
+        if (!static::$requestData && !static::$exceptionData && empty(static::$logs) && empty(static::$queries) && empty(static::$outgoingRequests)) {
             return;
         }
 
@@ -146,6 +175,7 @@ class PayloadCollector
         static::$exceptionData = null;
         static::$logs = [];
         static::$queries = [];
+        static::$outgoingRequests = [];
         static::$metadata = [];
         static::$sent = false;
     }
@@ -210,6 +240,11 @@ class PayloadCollector
         // Add queries if we have some
         if (!empty(static::$queries)) {
             $payload['queries'] = static::$queries;
+        }
+
+        // Add outgoing HTTP requests if we have some
+        if (!empty(static::$outgoingRequests)) {
+            $payload['outgoing_requests'] = static::$outgoingRequests;
         }
 
         return $payload;

@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\Handler;
+namespace ApexToolbox\SymfonyLogger\Tests\Handler;
 
-use ApexToolbox\Symfony\Handler\ApexToolboxExceptionHandler;
-use ApexToolbox\Symfony\PayloadCollector;
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxExceptionHandler;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Exception;
 use PHPUnit\Framework\TestCase;
 
@@ -21,7 +21,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_capture_calls_payload_collector()
+    public function test_logException_calls_payload_collector()
     {
         $config = [
             'enabled' => true,
@@ -32,7 +32,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
 
         $exception = new Exception('Test exception message', 500);
 
-        ApexToolboxExceptionHandler::capture($exception);
+        ApexToolboxExceptionHandler::logException($exception);
 
         // Use reflection to verify exception was stored in PayloadCollector
         $reflection = new \ReflectionClass(PayloadCollector::class);
@@ -46,7 +46,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
         $this->assertEquals(500, $exceptionData['code']);
     }
 
-    public function test_capture_when_disabled()
+    public function test_logException_when_disabled()
     {
         $config = [
             'enabled' => false,
@@ -57,7 +57,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
 
         $exception = new Exception('Test exception');
 
-        ApexToolboxExceptionHandler::capture($exception);
+        ApexToolboxExceptionHandler::logException($exception);
 
         // Use reflection to verify exception was not stored
         $reflection = new \ReflectionClass(PayloadCollector::class);
@@ -68,7 +68,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
         $this->assertNull($exceptionData);
     }
 
-    public function test_capture_when_no_token()
+    public function test_logException_when_no_token()
     {
         $config = [
             'enabled' => true,
@@ -79,7 +79,7 @@ class ApexToolboxExceptionHandlerTest extends TestCase
 
         $exception = new Exception('Test exception');
 
-        ApexToolboxExceptionHandler::capture($exception);
+        ApexToolboxExceptionHandler::logException($exception);
 
         // Use reflection to verify exception was not stored
         $reflection = new \ReflectionClass(PayloadCollector::class);

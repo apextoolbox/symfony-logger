@@ -1,10 +1,10 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\DependencyInjection;
+namespace ApexToolbox\SymfonyLogger\Tests\DependencyInjection;
 
-use ApexToolbox\Symfony\DependencyInjection\ApexToolboxExtension;
-use ApexToolbox\Symfony\EventListener\LoggerListener;
-use ApexToolbox\Symfony\Tests\AbstractTestCase;
+use ApexToolbox\SymfonyLogger\DependencyInjection\ApexToolboxExtension;
+use ApexToolbox\SymfonyLogger\EventListener\LoggerListener;
+use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 class ApexToolboxExtensionTest extends AbstractTestCase

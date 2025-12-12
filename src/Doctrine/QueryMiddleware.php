@@ -12,7 +12,7 @@ use Doctrine\DBAL\Driver\Middleware as MiddlewareInterface;
 class QueryMiddleware implements MiddlewareInterface
 {
     private array $queries = [];
-    private array $queryPatterns = [];
+    private int $sequenceIndex = 0;
 
     public function wrap(DriverInterface $driver): DriverInterface
     {
@@ -21,17 +21,33 @@ class QueryMiddleware implements MiddlewareInterface
 
     public function addQuery(array $queryData): void
     {
-        $this->queries[] = $queryData;
+        $this->sequenceIndex++;
 
-        // Track pattern for N+1 detection
         $normalizedSql = $this->normalizeSql($queryData['sql']);
-        if (!isset($this->queryPatterns[$normalizedSql])) {
-            $this->queryPatterns[$normalizedSql] = 0;
-        }
-        $this->queryPatterns[$normalizedSql]++;
 
-        // Add to PayloadCollector
-        PayloadCollector::addQuery($queryData);
+        $queryData['normalized_sql'] = $normalizedSql;
+        $queryData['pattern_hash'] = md5($normalizedSql);
+        $queryData['sequence_index'] = $this->sequenceIndex;
+
+        if (!isset($queryData['occurred_at'])) {
+            $queryData['occurred_at'] = (new \DateTime())->format('Y-m-d\TH:i:s.u\Z');
+        }
+
+        $this->queries[] = $queryData;
+    }
+
+    /**
+     * Send all collected queries to the backend for analysis
+     */
+    public function flush(): void
+    {
+        if (empty($this->queries)) {
+            return;
+        }
+
+        foreach ($this->queries as $query) {
+            PayloadCollector::addQuery($query);
+        }
     }
 
     public function getQueries(): array
@@ -39,37 +55,10 @@ class QueryMiddleware implements MiddlewareInterface
         return $this->queries;
     }
 
-    public function detectN1Queries(): array
-    {
-        $n1Groups = [];
-
-        foreach ($this->queryPatterns as $pattern => $count) {
-            // If same query pattern executed more than 3 times, it's likely N+1
-            if ($count > 3) {
-                $hash = hash('sha256', $pattern);
-                $n1Groups[$hash] = [
-                    'pattern' => $pattern,
-                    'count' => $count,
-                    'hash' => $hash,
-                ];
-
-                // Mark queries as N+1
-                foreach ($this->queries as &$query) {
-                    if ($this->normalizeSql($query['sql']) === $pattern) {
-                        $query['is_n1'] = true;
-                        $query['n1_group_hash'] = $hash;
-                    }
-                }
-            }
-        }
-
-        return array_values($n1Groups);
-    }
-
     public function clear(): void
     {
         $this->queries = [];
-        $this->queryPatterns = [];
+        $this->sequenceIndex = 0;
     }
 
     private function normalizeSql(string $sql): string
@@ -77,11 +66,14 @@ class QueryMiddleware implements MiddlewareInterface
         // Remove extra whitespace
         $sql = preg_replace('/\s+/', ' ', trim($sql));
 
-        // Replace numeric values with placeholder
-        $sql = preg_replace('/\b\d+\b/', '?', $sql);
-
         // Replace quoted strings with placeholder
         $sql = preg_replace("/'[^']*'/", '?', $sql);
+
+        // Replace numeric values with placeholder
+        $sql = preg_replace('/(?<=[=<>!\s,\(])(\s*)\d+(?:\.\d+)?(?=\s*[,\)\s]|$)/i', '$1?', $sql);
+
+        // Replace IN clauses with multiple values
+        $sql = preg_replace('/IN\s*\([^)]+\)/i', 'IN (?)', $sql);
 
         return $sql;
     }

@@ -30,8 +30,8 @@ class Apex
      */
     public static function logException(Throwable $exception, array $context = []): void
     {
-        // Capture exception for tracking
-        ApexToolboxExceptionHandler::capture($exception);
+        // Log exception for tracking
+        ApexToolboxExceptionHandler::logException($exception);
 
         // Also log it via standard logger if available
         if (self::$logger) {
@@ -47,25 +47,20 @@ class Apex
      * @param string $url Request URL
      * @param int|null $statusCode Response status code
      * @param float|null $durationMs Request duration in milliseconds
-     * @param string|null $error Error message if request failed
      * @return void
      */
     public static function trackHttpRequest(
         string $method,
         string $url,
         ?int $statusCode = null,
-        ?float $durationMs = null,
-        ?string $error = null
+        ?float $durationMs = null
     ): void {
-        PayloadCollector::addLog([
-            'type' => 'http_request',
+        PayloadCollector::addOutgoingRequest([
             'method' => strtoupper($method),
-            'url' => $url,
+            'uri' => $url,
             'status_code' => $statusCode,
-            'duration_ms' => $durationMs,
-            'success' => $statusCode ? $statusCode < 400 : ($error ? false : null),
-            'error' => $error,
-            'timestamp' => date('Y-m-d H:i:s'),
+            'duration' => $durationMs,
+            'timestamp' => date('c'),
         ]);
     }
 }

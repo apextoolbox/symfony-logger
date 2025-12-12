@@ -4,7 +4,6 @@ namespace ApexToolbox\SymfonyLogger\Service;
 
 use ApexToolbox\SymfonyLogger\Doctrine\QueryLogger;
 use ApexToolbox\SymfonyLogger\Doctrine\QueryMiddleware;
-use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Doctrine\DBAL\Connection;
 
 class QueryLoggerService
@@ -43,15 +42,18 @@ class QueryLoggerService
         }
     }
 
-    public function detectAndMarkN1Queries(): void
+    /**
+     * Send all collected queries to backend for analysis
+     */
+    public function flush(): void
     {
         if ($this->isDbal4) {
             if ($this->queryMiddleware) {
-                $this->queryMiddleware->detectN1Queries();
+                $this->queryMiddleware->flush();
             }
         } else {
             if ($this->queryLogger) {
-                $this->queryLogger->detectN1Queries();
+                $this->queryLogger->flush();
             }
         }
     }

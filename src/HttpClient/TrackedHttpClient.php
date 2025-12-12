@@ -29,7 +29,7 @@ class TrackedHttpClient implements HttpClientInterface
      */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
-        if (!$this->enabled) {
+        if (!$this->enabled || $this->shouldSkip($url)) {
             return $this->client->request($method, $url, $options);
         }
 
@@ -61,6 +61,13 @@ class TrackedHttpClient implements HttpClientInterface
         return $clone;
     }
 
+    private function shouldSkip(string $url): bool
+    {
+        $telemetryEndpoint = $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'] ?? 'https://apextoolbox.com/api/v1/telemetry';
+
+        return str_starts_with($url, $telemetryEndpoint) || str_contains($url, 'apextoolbox.com');
+    }
+
     private function trackRequest(
         string $method,
         string $url,
@@ -68,33 +75,27 @@ class TrackedHttpClient implements HttpClientInterface
         ?ResponseInterface $response,
         ?Throwable $error
     ): void {
-        $duration = (microtime(true) - $startTime) * 1000; // Convert to milliseconds
+        $duration = (microtime(true) - $startTime) * 1000;
 
         $data = [
-            'type' => 'http_request',
             'method' => strtoupper($method),
-            'url' => $url,
-            'duration_ms' => round($duration, 2),
-            'timestamp' => date('Y-m-d H:i:s'),
+            'uri' => $url,
+            'duration' => round($duration, 2),
+            'timestamp' => date('c'),
         ];
 
         if ($response) {
             try {
                 $data['status_code'] = $response->getStatusCode();
-                $data['success'] = $response->getStatusCode() < 400;
             } catch (Throwable $e) {
                 $data['status_code'] = null;
-                $data['success'] = false;
-                $data['error'] = $e->getMessage();
             }
         }
 
         if ($error) {
-            $data['success'] = false;
-            $data['error'] = $error->getMessage();
-            $data['exception_class'] = get_class($error);
+            $data['status_code'] = null;
         }
 
-        PayloadCollector::addLog($data);
+        PayloadCollector::addOutgoingRequest($data);
     }
 }

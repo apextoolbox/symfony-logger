@@ -1,9 +1,9 @@
 <?php
 
-namespace ApexToolbox\Symfony\Tests\DependencyInjection;
+namespace ApexToolbox\SymfonyLogger\Tests\DependencyInjection;
 
-use ApexToolbox\Symfony\DependencyInjection\Configuration;
-use ApexToolbox\Symfony\Tests\AbstractTestCase;
+use ApexToolbox\SymfonyLogger\DependencyInjection\Configuration;
+use ApexToolbox\SymfonyLogger\Tests\AbstractTestCase;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Processor;
 
