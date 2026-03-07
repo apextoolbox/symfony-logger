@@ -1,5 +1,6 @@
 {
     "name": "apextoolbox/symfony-logger",
+    "version": "0.1.0",
     "description": "Apex Toolbox Symfony Bundle",
     "type": "symfony-bundle",
     "license": "MIT",
@@ -51,7 +52,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.x-dev"
+            "dev-main": "0.1.x-dev"
         }
     },
     "minimum-stability": "stable",

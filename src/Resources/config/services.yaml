@@ -11,7 +11,7 @@ services:
 
     ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler:
         arguments:
-            $config: '%apex_toolbox%'
+            $config: '%apextoolbox%'
         tags:
             - { name: monolog.handler, method: handle }
 
@@ -25,9 +25,4 @@ services:
         decoration_priority: 10
         arguments:
             $client: '@.inner'
-            $config: '%apex_toolbox%'
-
-    # Query Logger Service
-    ApexToolbox\SymfonyLogger\Service\QueryLoggerService:
-        arguments:
-            $config: '%apex_toolbox%'
+            $config: '%apextoolbox%'

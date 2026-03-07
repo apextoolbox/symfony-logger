@@ -37,7 +37,7 @@ class LoggerListenerTest extends TestCase
     public function testOnKernelResponseCallsPayloadCollector(): void
     {
         $config = [
-            'apex_toolbox' => [
+            'apextoolbox' => [
                 'token' => 'test',
                 'enabled' => true,
                 'path_filters' => [
@@ -72,7 +72,7 @@ class LoggerListenerTest extends TestCase
 
     public function testOnKernelRequestSetsStartTime(): void
     {
-        $parameterBag = new ParameterBag(['apex_toolbox' => ['token' => 'test']]);
+        $parameterBag = new ParameterBag(['apextoolbox' => ['token' => 'test']]);
         $listener = new LoggerListener($parameterBag);
         
         $kernel = $this->createMock(HttpKernelInterface::class);
@@ -90,7 +90,7 @@ class LoggerListenerTest extends TestCase
     public function testHttpTrackingForApiPaths(): void
     {
         $config = [
-            'apex_toolbox' => [
+            'apextoolbox' => [
                 'token' => 'test-token',
                 'enabled' => true,
                 'path_filters' => [
@@ -104,7 +104,7 @@ class LoggerListenerTest extends TestCase
         $listener = new LoggerListener($parameterBag);
         
         // Configure PayloadCollector
-        PayloadCollector::configure($config['apex_toolbox']);
+        PayloadCollector::configure($config['apextoolbox']);
         
         $kernel = $this->createMock(HttpKernelInterface::class);
         $request = Request::create('https://example.com/api/users', 'GET');
@@ -124,7 +124,7 @@ class LoggerListenerTest extends TestCase
 
     public function testOnConsoleCommandRegistersShutdown(): void
     {
-        $parameterBag = new ParameterBag(['apex_toolbox' => ['token' => 'test']]);
+        $parameterBag = new ParameterBag(['apextoolbox' => ['token' => 'test']]);
         $listener = new LoggerListener($parameterBag);
         
         $command = $this->createMock(\Symfony\Component\Console\Command\Command::class);

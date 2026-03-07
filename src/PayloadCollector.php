@@ -2,7 +2,6 @@
 
 namespace ApexToolbox\SymfonyLogger;
 
-use DateTime;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Ramsey\Uuid\Uuid;
@@ -11,13 +10,9 @@ use Throwable;
 class PayloadCollector
 {
     private static ?string $requestId = null;
-    private static ?array $requestData = null;
-    private static ?array $responseData = null;
-    private static ?array $exceptionData = null;
+    private static ?array $incomingRequest = null;
     private static array $logs = [];
-    private static array $queries = [];
     private static array $outgoingRequests = [];
-    private static array $metadata = [];
     private static bool $sent = false;
     private static array $config = [];
 
@@ -46,18 +41,6 @@ class PayloadCollector
     }
 
     /**
-     * Add query entry
-     */
-    public static function addQuery(array $queryData): void
-    {
-        if (!static::isEnabled()) {
-            return;
-        }
-
-        static::$queries[] = $queryData;
-    }
-
-    /**
      * Collect request and response data
      */
     public static function collect(Request $request, ?Response $response, float $startTime, ?float $endTime = null): void
@@ -68,25 +51,17 @@ class PayloadCollector
 
         $endTime = $endTime ?: microtime(true);
 
-        static::$requestData = [
-            'direction' => 'incoming',
+        static::$incomingRequest = [
             'method' => $request->getMethod(),
             'uri' => $request->getRequestUri(),
             'headers' => static::filterHeaders($request->headers->all()),
             'payload' => static::filterBody($request->request->all()),
             'ip_address' => static::getRealIpAddress($request),
             'user_agent' => $request->headers->get('User-Agent'),
-        ];
-
-        static::$responseData = [
             'status_code' => $response ? $response->getStatusCode() : null,
             'response' => $response ? static::getResponseContent($response) : null,
             'duration' => round(($endTime - $startTime) * 1000),
         ];
-
-        static::$metadata['start_time'] = $startTime;
-        static::$metadata['end_time'] = $endTime;
-        static::$metadata['timestamp'] = (new DateTime())->format('c');
     }
 
     /**
@@ -114,31 +89,11 @@ class PayloadCollector
     }
 
     /**
-     * Get queries (for testing)
-     */
-    public static function getQueries(): array
-    {
-        return static::$queries;
-    }
-
-    /**
      * Get outgoing requests (for testing)
      */
     public static function getOutgoingRequests(): array
     {
         return static::$outgoingRequests;
-    }
-
-    /**
-     * Set exception data
-     */
-    public static function setException(Throwable $exception): void
-    {
-        if (!static::isEnabled()) {
-            return;
-        }
-
-        static::$exceptionData = static::parseException($exception);
     }
 
     /**
@@ -151,7 +106,7 @@ class PayloadCollector
         }
 
         // Don't send if no meaningful data collected
-        if (!static::$requestData && !static::$exceptionData && empty(static::$logs) && empty(static::$queries) && empty(static::$outgoingRequests)) {
+        if (!static::$incomingRequest && empty(static::$logs) && empty(static::$outgoingRequests)) {
             return;
         }
 
@@ -170,13 +125,9 @@ class PayloadCollector
     public static function clear(): void
     {
         static::$requestId = null;
-        static::$requestData = null;
-        static::$responseData = null;
-        static::$exceptionData = null;
+        static::$incomingRequest = null;
         static::$logs = [];
-        static::$queries = [];
         static::$outgoingRequests = [];
-        static::$metadata = [];
         static::$sent = false;
     }
 
@@ -196,50 +147,19 @@ class PayloadCollector
         return (static::$config['enabled'] ?? true) && !empty(static::$config['token']);
     }
 
-    /**
-     * Build unified payload for the telemetry API
-     *
-     * New API structure: trace_id, request (containing both request + response data), logs, exception
-     */
     private static function buildPayload(): array
     {
         $payload = [];
 
-        // Add trace_id at top level (renamed from logs_trace_id)
-        $payload['trace_id'] = Uuid::uuid7()->toString();
+        $payload['trace_id'] = static::$requestId ?? Uuid::uuid7()->toString();
 
-        // Build combined request object (includes both request AND response data)
-        if (static::$requestData || static::$responseData) {
-            $requestObject = [];
-
-            // Add request data fields
-            if (static::$requestData) {
-                $requestObject = array_merge($requestObject, static::$requestData);
-            }
-
-            // Add response data fields (status_code, response, duration)
-            if (static::$responseData) {
-                $requestObject['status_code'] = static::$responseData['status_code'];
-                $requestObject['response'] = static::$responseData['response'];
-                $requestObject['duration'] = static::$responseData['duration'];
-            }
-
-            $payload['request'] = $requestObject;
+        if (static::$incomingRequest) {
+            $payload['request'] = static::$incomingRequest;
         }
 
         // Add logs if we have some
         if (!empty(static::$logs)) {
             $payload['logs'] = static::$logs;
-        }
-
-        // Add exception data if available
-        if (static::$exceptionData) {
-            $payload['exception'] = static::$exceptionData;
-        }
-
-        // Add queries if we have some
-        if (!empty(static::$queries)) {
-            $payload['queries'] = static::$queries;
         }
 
         // Add outgoing HTTP requests if we have some
@@ -258,153 +178,21 @@ class PayloadCollector
         $ch = curl_init();
 
         curl_setopt_array($ch, [
-            CURLOPT_URL => static::getEndpointUrl(),
+            CURLOPT_URL => 'https://apextoolbox.com/api/v1/logs',
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($payload),
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . static::$config['token'],
                 'Content-Type: application/json',
             ],
+            CURLOPT_CONNECTTIMEOUT => 2,
             CURLOPT_TIMEOUT => 5,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_NOSIGNAL => 1,
         ]);
 
         curl_exec($ch);
         curl_close($ch);
-    }
-
-    /**
-     * Get endpoint URL
-     */
-    private static function getEndpointUrl(): string
-    {
-        if (!empty($_ENV['APEX_TOOLBOX_DEV_ENDPOINT'])) {
-            return $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'];
-        }
-
-        return 'https://apextoolbox.com/api/v1/telemetry';
-    }
-
-    /**
-     * Parse exception into structured data
-     */
-    private static function parseException(Throwable $exception): array
-    {
-        // Add the exception throwing location as the first frame
-        $trace = $exception->getTrace();
-
-        // Get method info from the first trace frame (if available)
-        $firstFrame = $trace[0] ?? [];
-
-        array_unshift($trace, [
-            'file' => $exception->getFile(),
-            'line' => $exception->getLine(),
-            'function' => $firstFrame['function'] ?? 'unknown',
-            'class' => $firstFrame['class'] ?? '',
-            'type' => $firstFrame['type'] ?? '',
-            'args' => []
-        ]);
-
-        return [
-            'hash' => static::generateExceptionHash($exception),
-            'message' => $exception->getMessage(),
-            'class' => get_class($exception),
-            'file_path' => str_replace(getcwd() . DIRECTORY_SEPARATOR, '', $exception->getFile()),
-            'line_number' => $exception->getLine(),
-            'code' => $exception->getCode(),
-            'stack_trace' => static::prepareStackTrace($trace),
-            'timestamp' => (new \DateTime())->format('c'),
-            'context' => [
-                'environment' => $_ENV['APP_ENV'] ?? 'prod',
-                'php_version' => PHP_VERSION,
-                'symfony_version' => \Symfony\Component\HttpKernel\Kernel::VERSION,
-            ],
-        ];
-    }
-
-    /**
-     * Generate unique hash for exception grouping
-     */
-    private static function generateExceptionHash(Throwable $exception): string
-    {
-        $key = $exception->getFile() . ':' . $exception->getLine() . ':' . get_class($exception);
-        return hash('sha256', $key);
-    }
-
-    /**
-     * Prepare stack trace with code context
-     */
-    private static function prepareStackTrace(array $trace): array
-    {
-        $basePath = getcwd();
-        $frames = [];
-
-        foreach ($trace as $entry) {
-            if (!isset($entry['file'])) continue;
-
-            // Remove args to avoid sensitive data
-            unset($entry['args']);
-
-            $frame = [
-                'file' => str_replace($basePath . DIRECTORY_SEPARATOR, '', $entry['file']),
-                'line' => $entry['line'] ?? 0,
-                'function' => $entry['function'] ?? '',
-                'class' => $entry['class'] ?? '',
-                'in_app' => static::isAppCode($entry['file']),
-                'code_context' => static::extractCodeContext($entry['file'], $entry['line'] ?? 0)
-            ];
-
-            $frames[] = $frame;
-        }
-
-        return $frames;
-    }
-
-    /**
-     * Detect if file is application code (not vendor)
-     */
-    private static function isAppCode(string $filePath): bool
-    {
-        // Normalize path separators for cross-platform compatibility
-        $normalizedPath = str_replace('\\', '/', $filePath);
-
-        // Check if path contains /vendor/
-        return strpos($normalizedPath, '/vendor/') === false;
-    }
-
-    /**
-     * Extract code context around a specific line
-     */
-    private static function extractCodeContext(string $file, int $line): ?array
-    {
-        if (!file_exists($file) || !is_readable($file)) {
-            return null;
-        }
-
-        $lines = file($file, FILE_IGNORE_NEW_LINES);
-        if (!$lines) return null;
-
-        $startLine = max(1, $line - 10);
-        $endLine = min(count($lines), $line + 5);
-
-        $context = [];
-        for ($i = $startLine; $i <= $endLine; $i++) {
-            $code = $lines[$i - 1] ?? '';
-            $code = str_replace(["\t", " "], ["&#9;", "&#32;"], $code);
-
-            $context[] = [
-                'line_number' => $i,
-                'code' => $code,
-                'is_error_line' => $i === $line,
-            ];
-        }
-
-        return [
-            'lines' => $context,
-            'context_start' => $startLine,
-            'context_end' => $endLine
-        ];
     }
 
     /**
@@ -478,8 +266,17 @@ class PayloadCollector
     }
 
     /**
-     * Recursively filter sensitive data
+     * Recursively filter sensitive data (public alias for use by TrackedHttpClient)
      */
+    public static function recursivelyFilter(
+        array $data,
+        array $excludeFields,
+        array $maskFields = [],
+        string $maskValue = '*******'
+    ): array {
+        return static::recursivelyFilterSensitiveData($data, $excludeFields, $maskFields, $maskValue);
+    }
+
     private static function recursivelyFilterSensitiveData(
         array $data,
         array $excludeFields,
@@ -487,15 +284,17 @@ class PayloadCollector
         string $maskValue = '*******'
     ): array {
         $filtered = [];
+        $excludeFieldsLower = array_map('strtolower', $excludeFields);
+        $maskFieldsLower = array_map('strtolower', $maskFields);
 
         foreach ($data as $key => $value) {
             $keyLower = strtolower($key);
 
-            if (in_array($keyLower, array_map('strtolower', $excludeFields))) {
+            if (in_array($keyLower, $excludeFieldsLower)) {
                 continue;
             }
 
-            if (in_array($keyLower, array_map('strtolower', $maskFields))) {
+            if (in_array($keyLower, $maskFieldsLower)) {
                 $filtered[$key] = $maskValue;
                 continue;
             }
