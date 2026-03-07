@@ -44,21 +44,16 @@ class PayloadCollectorTest extends TestCase
 
         // Use reflection to access private data
         $reflection = new \ReflectionClass(PayloadCollector::class);
-        $requestDataProperty = $reflection->getProperty('requestData');
-        $requestDataProperty->setAccessible(true);
-        $requestData = $requestDataProperty->getValue();
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
+        $incomingRequest = $incomingRequestProperty->getValue();
 
-        $responseDataProperty = $reflection->getProperty('responseData');
-        $responseDataProperty->setAccessible(true);
-        $responseData = $responseDataProperty->getValue();
-
-        $this->assertNotNull($requestData);
-        $this->assertNotNull($responseData);
-        $this->assertEquals('POST', $requestData['method']);
-        $this->assertEquals('/api/test', $requestData['uri']);
-        $this->assertEquals(['key' => 'value'], $requestData['payload']);
-        $this->assertEquals(200, $responseData['status_code']);
-        $this->assertEqualsWithDelta(100, $responseData['duration'], 1); // 100ms ± 1ms
+        $this->assertNotNull($incomingRequest);
+        $this->assertEquals('POST', $incomingRequest['method']);
+        $this->assertEquals('/api/test', $incomingRequest['uri']);
+        $this->assertEquals(['key' => 'value'], $incomingRequest['payload']);
+        $this->assertEquals(200, $incomingRequest['status_code']);
+        $this->assertEqualsWithDelta(100, $incomingRequest['duration'], 1); // 100ms ± 1ms
     }
 
     public function test_collect_ignores_when_disabled()
@@ -76,10 +71,10 @@ class PayloadCollectorTest extends TestCase
         PayloadCollector::collect($request, $response, microtime(true));
 
         $reflection = new \ReflectionClass(PayloadCollector::class);
-        $requestDataProperty = $reflection->getProperty('requestData');
-        $requestDataProperty->setAccessible(true);
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
 
-        $this->assertNull($requestDataProperty->getValue());
+        $this->assertNull($incomingRequestProperty->getValue());
     }
 
     public function test_collect_ignores_when_no_token()
@@ -97,10 +92,10 @@ class PayloadCollectorTest extends TestCase
         PayloadCollector::collect($request, $response, microtime(true));
 
         $reflection = new \ReflectionClass(PayloadCollector::class);
-        $requestDataProperty = $reflection->getProperty('requestData');
-        $requestDataProperty->setAccessible(true);
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
 
-        $this->assertNull($requestDataProperty->getValue());
+        $this->assertNull($incomingRequestProperty->getValue());
     }
 
     public function test_set_exception_stores_exception_data()
@@ -123,10 +118,12 @@ class PayloadCollectorTest extends TestCase
         $this->assertNotNull($exceptionData);
         $this->assertEquals('Test exception', $exceptionData['message']);
         $this->assertEquals('Exception', $exceptionData['class']);
-        $this->assertEquals(500, $exceptionData['code']);
+        $this->assertEquals('500', $exceptionData['code']);
         $this->assertArrayHasKey('hash', $exceptionData);
         $this->assertArrayHasKey('stack_trace', $exceptionData);
-        $this->assertIsArray($exceptionData['stack_trace']);
+        $this->assertIsString($exceptionData['stack_trace']);
+        $decoded = json_decode($exceptionData['stack_trace'], true);
+        $this->assertIsArray($decoded);
     }
 
     public function test_exception_stack_trace_has_in_app_field()
@@ -147,7 +144,8 @@ class PayloadCollectorTest extends TestCase
         $exceptionData = $exceptionDataProperty->getValue();
 
         $this->assertArrayHasKey('stack_trace', $exceptionData);
-        $stackTrace = $exceptionData['stack_trace'];
+        $stackTrace = json_decode($exceptionData['stack_trace'], true);
+        $this->assertIsArray($stackTrace);
 
         // At least one frame should exist
         $this->assertNotEmpty($stackTrace);
@@ -247,17 +245,13 @@ class PayloadCollectorTest extends TestCase
 
         $reflection = new \ReflectionClass(PayloadCollector::class);
 
-        $requestDataProperty = $reflection->getProperty('requestData');
-        $requestDataProperty->setAccessible(true);
-
-        $responseDataProperty = $reflection->getProperty('responseData');
-        $responseDataProperty->setAccessible(true);
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
 
         $exceptionDataProperty = $reflection->getProperty('exceptionData');
         $exceptionDataProperty->setAccessible(true);
 
-        $this->assertNull($requestDataProperty->getValue());
-        $this->assertNull($responseDataProperty->getValue());
+        $this->assertNull($incomingRequestProperty->getValue());
         $this->assertNull($exceptionDataProperty->getValue());
     }
 
@@ -278,13 +272,13 @@ class PayloadCollectorTest extends TestCase
         PayloadCollector::collect($request, null, microtime(true));
 
         $reflection = new \ReflectionClass(PayloadCollector::class);
-        $responseDataProperty = $reflection->getProperty('responseData');
-        $responseDataProperty->setAccessible(true);
-        $responseData = $responseDataProperty->getValue();
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
+        $incomingRequest = $incomingRequestProperty->getValue();
 
-        $this->assertNotNull($responseData);
-        $this->assertNull($responseData['status_code']);
-        $this->assertNull($responseData['response']);
+        $this->assertNotNull($incomingRequest);
+        $this->assertNull($incomingRequest['status_code']);
+        $this->assertNull($incomingRequest['response']);
     }
 
     public function test_collect_calculates_duration_correctly()
@@ -308,11 +302,11 @@ class PayloadCollectorTest extends TestCase
         PayloadCollector::collect($request, $response, $startTime, $endTime);
 
         $reflection = new \ReflectionClass(PayloadCollector::class);
-        $responseDataProperty = $reflection->getProperty('responseData');
-        $responseDataProperty->setAccessible(true);
-        $responseData = $responseDataProperty->getValue();
+        $incomingRequestProperty = $reflection->getProperty('incomingRequest');
+        $incomingRequestProperty->setAccessible(true);
+        $incomingRequest = $incomingRequestProperty->getValue();
 
-        $this->assertEquals(500, $responseData['duration']);
+        $this->assertEquals(500, $incomingRequest['duration']);
     }
 
     public function test_clear_resets_logs()
@@ -351,10 +345,28 @@ class PayloadCollectorTest extends TestCase
         $buildPayloadMethod->setAccessible(true);
         $payload = $buildPayloadMethod->invoke(null);
 
-        // trace_id is now always at top level (renamed from logs_trace_id)
         $this->assertArrayHasKey('trace_id', $payload);
         $this->assertArrayHasKey('logs', $payload);
         $this->assertCount(1, $payload['logs']);
+    }
+
+    public function test_build_payload_uses_request_id_as_trace_id()
+    {
+        $config = [
+            'enabled' => true,
+            'token' => 'test-token'
+        ];
+
+        PayloadCollector::configure($config);
+        PayloadCollector::setRequestId('custom-request-id-123');
+        PayloadCollector::addLog(['level' => 'INFO', 'message' => 'Test log']);
+
+        $reflection = new \ReflectionClass(PayloadCollector::class);
+        $buildPayloadMethod = $reflection->getMethod('buildPayload');
+        $buildPayloadMethod->setAccessible(true);
+        $payload = $buildPayloadMethod->invoke(null);
+
+        $this->assertEquals('custom-request-id-123', $payload['trace_id']);
     }
 
     public function test_build_payload_groups_request_and_response_data()
@@ -382,10 +394,7 @@ class PayloadCollectorTest extends TestCase
         $buildPayloadMethod->setAccessible(true);
         $payload = $buildPayloadMethod->invoke(null);
 
-        // Verify trace_id is at top level
         $this->assertArrayHasKey('trace_id', $payload);
-
-        // Verify request object contains both request AND response data
         $this->assertArrayHasKey('request', $payload);
         $requestData = $payload['request'];
 
@@ -396,8 +405,9 @@ class PayloadCollectorTest extends TestCase
         $this->assertArrayHasKey('payload', $requestData);
         $this->assertArrayHasKey('ip_address', $requestData);
         $this->assertArrayHasKey('user_agent', $requestData);
+        $this->assertArrayNotHasKey('direction', $requestData);
 
-        // Response fields (now inside request object)
+        // Response fields (merged into request object)
         $this->assertEquals(200, $requestData['status_code']);
         $this->assertArrayHasKey('response', $requestData);
         $this->assertEqualsWithDelta(100, $requestData['duration'], 1);

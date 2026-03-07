@@ -6,27 +6,22 @@ use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Processor\IntrospectionProcessor;
 use Monolog\Logger;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Throwable;
 
 class ApexToolboxLogHandler extends AbstractProcessingHandler
 {
     private array $config;
-    private HttpClientInterface $httpClient;
 
     /**
      * @param array $config
-     * @param HttpClientInterface|null $httpClient
      * @param int|string $level Monolog 2: int, Monolog 3: Level enum
      * @param bool $bubble
      */
-    public function __construct(array $config, ?HttpClientInterface $httpClient = null, $level = 100, bool $bubble = true)
+    public function __construct(array $config, $level = 100, bool $bubble = true)
     {
         parent::__construct($level, $bubble);
 
         $this->config = $config;
-        $this->httpClient = $httpClient ?? HttpClient::create(['timeout' => 2]);
 
         // Add introspection processor to capture source information (file, line, class, function)
         $this->pushProcessor(new IntrospectionProcessor(Logger::DEBUG, ['Monolog\\', 'Symfony\\Component\\HttpKernel\\Log\\']));
@@ -72,6 +67,9 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
         $file = $extra['file'] ?? null;
         $line = $extra['line'] ?? null;
 
+        // Determine execution type
+        $type = php_sapi_name() === 'cli' ? 'console' : 'http';
+
         return [
             'level' => strtoupper($isMonolog3 ? $record->level->getName() : $record['level_name']),
             'message' => $isMonolog3 ? $record->message : $record['message'],
@@ -82,12 +80,14 @@ class ApexToolboxLogHandler extends AbstractProcessingHandler
             'channel' => $isMonolog3 ? $record->channel : $record['channel'],
             'source_class' => $sourceClass,
             'function' => $function,
+            'callType' => $callType,
+            'type' => $type,
             'file' => $file,
             'line' => $line,
         ];
     }
 
-    public static function flushBuffer(array $config, ?HttpClientInterface $httpClient = null): void
+    public static function flushBuffer(array $config): void
     {
         PayloadCollector::configure($config);
         PayloadCollector::send();

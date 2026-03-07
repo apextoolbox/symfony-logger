@@ -21,19 +21,19 @@ class ApexToolboxExtensionTest extends AbstractTestCase
 
     public function testGetAlias(): void
     {
-        $this->assertEquals('apex_toolbox', $this->extension->getAlias());
+        $this->assertEquals('apextoolbox', $this->extension->getAlias());
     }
 
     public function testLoadSetsDefaultConfiguration(): void
     {
         $this->extension->load([], $this->container);
         
-        $this->assertTrue($this->container->hasParameter('apex_toolbox'));
+        $this->assertTrue($this->container->hasParameter('apextoolbox'));
         
-        $config = $this->container->getParameter('apex_toolbox');
+        $config = $this->container->getParameter('apextoolbox');
         $this->assertTrue($config['enabled']);
         $this->assertEquals('', $config['token']);
-        $this->assertEquals(['api/*'], $config['path_filters']['include']);
+        $this->assertEquals(['*'], $config['path_filters']['include']);
     }
 
     public function testLoadWithCustomConfiguration(): void
@@ -50,7 +50,7 @@ class ApexToolboxExtensionTest extends AbstractTestCase
 
         $this->extension->load($configs, $this->container);
         
-        $config = $this->container->getParameter('apex_toolbox');
+        $config = $this->container->getParameter('apextoolbox');
         $this->assertFalse($config['enabled']);
         $this->assertEquals('test-token', $config['token']);
         $this->assertEquals(['webhook/*'], $config['path_filters']['include']);
@@ -85,7 +85,7 @@ class ApexToolboxExtensionTest extends AbstractTestCase
 
         $this->extension->load($configs, $this->container);
         
-        $config = $this->container->getParameter('apex_toolbox');
+        $config = $this->container->getParameter('apextoolbox');
         // Last config should override
         $this->assertEquals('second-token', $config['token']);
         $this->assertEquals(['api/v2/*'], $config['path_filters']['include']);

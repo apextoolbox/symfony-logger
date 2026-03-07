@@ -135,7 +135,7 @@ class TrackedHttpClientTest extends TestCase
         ]);
 
         $trackedClient = new TrackedHttpClient($mockClient);
-        $response = $trackedClient->request('GET', 'https://apextoolbox.com/api/v1/telemetry');
+        $response = $trackedClient->request('GET', 'https://apextoolbox.com/api/v1/logs');
 
         // Consume the response
         $response->getContent();

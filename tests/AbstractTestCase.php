@@ -51,7 +51,7 @@ class TestKernel extends Kernel
     public function registerContainerConfiguration(LoaderInterface $loader): void
     {
         $loader->load(function (ContainerBuilder $container) {
-            $container->loadFromExtension('apex_toolbox', $this->configs);
+            $container->loadFromExtension('apextoolbox', $this->configs);
 
             // Set test configuration
             $container->setParameter('apex_toolbox.token', 'test-token');

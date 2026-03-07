@@ -14,7 +14,6 @@ use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -34,7 +33,7 @@ class LoggerListener implements EventSubscriberInterface
         ?QueryLoggerService $queryLoggerService = null,
         ?Connection $connection = null
     ) {
-        $this->config = $parameterBag->get('apex_toolbox') ?? [];
+        $this->config = $parameterBag->get('apextoolbox') ?? [];
         $this->queryLoggerService = $queryLoggerService;
         $this->connection = $connection;
         PayloadCollector::configure($this->config);
@@ -43,7 +42,7 @@ class LoggerListener implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         $events = [
-            KernelEvents::REQUEST => ['onKernelRequest', 0],
+            KernelEvents::REQUEST => ['onKernelRequest', 255],
             KernelEvents::RESPONSE => ['onKernelResponse', 0],
             KernelEvents::EXCEPTION => ['onKernelException', 0],
             ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
@@ -98,7 +97,7 @@ class LoggerListener implements EventSubscriberInterface
 
         // Only collect request/response data if path matches filters
         if ($this->shouldTrack($request)) {
-            PayloadCollector::collect($request, $response, $this->startTime);
+            PayloadCollector::collect($request, $response, $this->startTime ?? microtime(true));
         }
 
         // Always send if we have ANY data (logs, exceptions, queries, or tracked request)
@@ -202,7 +201,7 @@ class LoggerListener implements EventSubscriberInterface
         }
 
         $path = $request->getPathInfo();
-        $includes = $this->config['path_filters']['include'] ?? ['api/*'];
+        $includes = $this->config['path_filters']['include'] ?? ['*'];
         $excludes = $this->config['path_filters']['exclude'] ?? [];
 
         // Check excludes first
@@ -237,106 +236,4 @@ class LoggerListener implements EventSubscriberInterface
         return fnmatch($normalizedPattern, $normalizedPath);
     }
 
-    protected function getRealIpAddress(Request $request): string
-    {
-        $headers = [
-            'CF-Connecting-IP',     // Cloudflare
-            'X-Forwarded-For',      // Standard proxy header
-            'X-Real-IP',            // Nginx proxy
-            'X-Client-IP',          // Apache mod_proxy
-            'HTTP_X_FORWARDED_FOR', // Alternative format
-            'HTTP_X_REAL_IP',       // Alternative format
-            'HTTP_CF_CONNECTING_IP', // Alternative Cloudflare format
-        ];
-
-        foreach ($headers as $header) {
-            $value = $request->headers->get($header) ?? $_SERVER[$header] ?? null;
-            
-            if ($value) {
-                // Handle comma-separated IPs (X-Forwarded-For can contain multiple IPs)
-                $ips = explode(',', $value);
-                $ip = trim($ips[0]);
-                
-                // Validate IP address
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return $ip;
-                }
-            }
-        }
-
-        // Fallback to request IP
-        return $request->getClientIp() ?? '127.0.0.1';
-    }
-
-    protected function filterHeaders(array $headers): array
-    {
-        if (!($this->config['headers']['include_sensitive'] ?? false)) {
-            $excludeHeaders = $this->config['headers']['exclude'] ?? ['authorization', 'x-api-key', 'cookie'];
-            
-            $filtered = [];
-            foreach ($headers as $key => $value) {
-                if (!in_array(strtolower($key), array_map('strtolower', $excludeHeaders))) {
-                    $filtered[$key] = $value;
-                }
-            }
-            
-            return $filtered;
-        }
-
-        return $headers;
-    }
-
-    protected function filterBody(array $body): array
-    {
-        $excludeFields = $this->config['body']['exclude'] ?? ['password', 'password_confirmation', 'token', 'secret'];
-        
-        $filtered = [];
-        foreach ($body as $key => $value) {
-            if (!in_array($key, $excludeFields)) {
-                $filtered[$key] = $value;
-            }
-        }
-        
-        $maxSize = $this->config['body']['max_size'] ?? 10240;
-        $serialized = json_encode($filtered);
-        
-        if (strlen($serialized) > $maxSize) {
-            return ['_truncated' => 'Body too large, truncated'];
-        }
-        
-        return $filtered;
-    }
-
-    /**
-     * @return array|string|null
-     */
-    protected function getResponseContent(Response $response)
-    {
-        $content = $response->getContent();
-        $maxSize = $this->config['body']['max_size'] ?? 10240;
-        
-        if (strlen($content) > $maxSize) {
-            return substr($content, 0, $maxSize) . '... [truncated]';
-        }
-        
-        // Try to decode JSON response
-        $decoded = json_decode($content, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-        
-        return $content;
-    }
-
-    protected function getEndpointUrl(): string
-    {
-        // Only override endpoint if explicitly set for ApexToolbox package development
-        // This requires both the dev endpoint AND a special dev flag to be set
-        if (isset($_ENV['APEX_TOOLBOX_DEV_ENDPOINT']) && ($_ENV['APEX_TOOLBOX_DEV_MODE'] ?? '') === 'true') {
-            return $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'];
-        }
-
-        // Production endpoint - hardcoded (used by all users, including their local dev)
-        return 'https://apextoolbox.com/api/v1/telemetry';
-    }
 }

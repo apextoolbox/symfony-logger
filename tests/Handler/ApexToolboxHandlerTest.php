@@ -109,6 +109,9 @@ class ApexToolboxHandlerTest extends TestCase
         $this->assertEquals('test', $result['channel']);
         $this->assertEquals('TestClass', $result['source_class']);
         $this->assertEquals('testMethod', $result['function']);
+        $this->assertArrayHasKey('callType', $result);
+        $this->assertArrayHasKey('type', $result);
+        $this->assertEquals('console', $result['type']); // running in PHPUnit CLI
     }
 
     public function testFlushBuffer(): void

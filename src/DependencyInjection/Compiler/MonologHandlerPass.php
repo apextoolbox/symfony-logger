@@ -17,11 +17,11 @@ class MonologHandlerPass implements CompilerPassInterface
         }
 
         // Get the configuration
-        if (!$container->hasParameter('apex_toolbox')) {
+        if (!$container->hasParameter('apextoolbox')) {
             return;
         }
 
-        $config = $container->getParameter('apex_toolbox');
+        $config = $container->getParameter('apextoolbox');
 
         // Check if enabled
         if (!($config['enabled'] ?? true)) {

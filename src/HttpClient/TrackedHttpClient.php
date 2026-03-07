@@ -16,11 +16,13 @@ class TrackedHttpClient implements HttpClientInterface
 {
     private HttpClientInterface $client;
     private bool $enabled;
+    private array $config;
 
     public function __construct(HttpClientInterface $client, array $config = [])
     {
         $this->client = $client;
         $this->enabled = $config['track_http_requests'] ?? true;
+        $this->config = $config;
     }
 
     /**
@@ -39,12 +41,12 @@ class TrackedHttpClient implements HttpClientInterface
             $response = $this->client->request($method, $url, $options);
 
             // Wrap the response to track when it's actually consumed
-            return new TrackedResponse($response, function () use ($method, $url, $startTime, $response) {
-                $this->trackRequest($method, $url, $startTime, $response, null);
+            return new TrackedResponse($response, function () use ($method, $url, $options, $startTime, $response) {
+                $this->trackRequest($method, $url, $options, $startTime, $response, null);
             });
         } catch (Throwable $e) {
             $error = $e;
-            $this->trackRequest($method, $url, $startTime, null, $error);
+            $this->trackRequest($method, $url, $options, $startTime, null, $error);
             throw $e;
         }
     }
@@ -63,14 +65,13 @@ class TrackedHttpClient implements HttpClientInterface
 
     private function shouldSkip(string $url): bool
     {
-        $telemetryEndpoint = $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'] ?? 'https://apextoolbox.com/api/v1/telemetry';
-
-        return str_starts_with($url, $telemetryEndpoint) || str_contains($url, 'apextoolbox.com');
+        return str_contains($url, 'apextoolbox.com');
     }
 
     private function trackRequest(
         string $method,
         string $url,
+        array $options,
         float $startTime,
         ?ResponseInterface $response,
         ?Throwable $error
@@ -80,6 +81,8 @@ class TrackedHttpClient implements HttpClientInterface
         $data = [
             'method' => strtoupper($method),
             'uri' => $url,
+            'headers' => $this->filterHeaders($options['headers'] ?? []),
+            'payload' => $this->filterBody($options['body'] ?? $options['json'] ?? []),
             'duration' => round($duration, 2),
             'timestamp' => date('c'),
         ];
@@ -87,15 +90,50 @@ class TrackedHttpClient implements HttpClientInterface
         if ($response) {
             try {
                 $data['status_code'] = $response->getStatusCode();
+                $data['response_headers'] = $response->getHeaders(false);
+                $content = $response->getContent(false);
+                $decoded = json_decode($content, true);
+                $data['response'] = $this->filterResponse($decoded !== null ? $decoded : $content);
             } catch (Throwable $e) {
                 $data['status_code'] = null;
+                $data['response_headers'] = [];
+                $data['response'] = null;
             }
         }
 
         if ($error) {
             $data['status_code'] = null;
+            $data['response_headers'] = [];
+            $data['response'] = null;
         }
 
         PayloadCollector::addOutgoingRequest($data);
+    }
+
+    private function filterHeaders(array $headers): array
+    {
+        $excludeFields = $this->config['headers']['exclude'] ?? [];
+        $maskFields = $this->config['headers']['mask'] ?? [];
+        return PayloadCollector::recursivelyFilter($headers, $excludeFields, $maskFields);
+    }
+
+    private function filterBody($body): array
+    {
+        if (!is_array($body)) {
+            return [];
+        }
+        $excludeFields = $this->config['body']['exclude'] ?? [];
+        $maskFields = $this->config['body']['mask'] ?? [];
+        return PayloadCollector::recursivelyFilter($body, $excludeFields, $maskFields);
+    }
+
+    private function filterResponse($response): mixed
+    {
+        if (!is_array($response)) {
+            return $response;
+        }
+        $excludeFields = $this->config['response']['exclude'] ?? [];
+        $maskFields = $this->config['response']['mask'] ?? [];
+        return PayloadCollector::recursivelyFilter($response, $excludeFields, $maskFields);
     }
 }

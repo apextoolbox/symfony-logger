@@ -15,7 +15,7 @@ class ApexToolboxExtension extends Extension
         $config = $this->processConfiguration($configuration, $configs);
 
         // Set configuration as parameters
-        $container->setParameter('apex_toolbox', $config);
+        $container->setParameter('apextoolbox', $config);
 
         // Load services
         $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
@@ -24,6 +24,6 @@ class ApexToolboxExtension extends Extension
 
     public function getAlias(): string
     {
-        return 'apex_toolbox';
+        return 'apextoolbox';
     }
 }

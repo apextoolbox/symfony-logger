@@ -2,7 +2,6 @@
 
 namespace ApexToolbox\SymfonyLogger;
 
-use DateTime;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Ramsey\Uuid\Uuid;
@@ -11,8 +10,7 @@ use Throwable;
 class PayloadCollector
 {
     private static ?string $requestId = null;
-    private static ?array $requestData = null;
-    private static ?array $responseData = null;
+    private static ?array $incomingRequest = null;
     private static ?array $exceptionData = null;
     private static array $logs = [];
     private static array $queries = [];
@@ -68,25 +66,17 @@ class PayloadCollector
 
         $endTime = $endTime ?: microtime(true);
 
-        static::$requestData = [
-            'direction' => 'incoming',
+        static::$incomingRequest = [
             'method' => $request->getMethod(),
             'uri' => $request->getRequestUri(),
             'headers' => static::filterHeaders($request->headers->all()),
             'payload' => static::filterBody($request->request->all()),
             'ip_address' => static::getRealIpAddress($request),
             'user_agent' => $request->headers->get('User-Agent'),
-        ];
-
-        static::$responseData = [
             'status_code' => $response ? $response->getStatusCode() : null,
             'response' => $response ? static::getResponseContent($response) : null,
             'duration' => round(($endTime - $startTime) * 1000),
         ];
-
-        static::$metadata['start_time'] = $startTime;
-        static::$metadata['end_time'] = $endTime;
-        static::$metadata['timestamp'] = (new DateTime())->format('c');
     }
 
     /**
@@ -151,7 +141,7 @@ class PayloadCollector
         }
 
         // Don't send if no meaningful data collected
-        if (!static::$requestData && !static::$exceptionData && empty(static::$logs) && empty(static::$queries) && empty(static::$outgoingRequests)) {
+        if (!static::$incomingRequest && !static::$exceptionData && empty(static::$logs) && empty(static::$queries) && empty(static::$outgoingRequests)) {
             return;
         }
 
@@ -170,8 +160,7 @@ class PayloadCollector
     public static function clear(): void
     {
         static::$requestId = null;
-        static::$requestData = null;
-        static::$responseData = null;
+        static::$incomingRequest = null;
         static::$exceptionData = null;
         static::$logs = [];
         static::$queries = [];
@@ -196,35 +185,14 @@ class PayloadCollector
         return (static::$config['enabled'] ?? true) && !empty(static::$config['token']);
     }
 
-    /**
-     * Build unified payload for the telemetry API
-     *
-     * New API structure: trace_id, request (containing both request + response data), logs, exception
-     */
     private static function buildPayload(): array
     {
         $payload = [];
 
-        // Add trace_id at top level (renamed from logs_trace_id)
-        $payload['trace_id'] = Uuid::uuid7()->toString();
+        $payload['trace_id'] = static::$requestId ?? Uuid::uuid7()->toString();
 
-        // Build combined request object (includes both request AND response data)
-        if (static::$requestData || static::$responseData) {
-            $requestObject = [];
-
-            // Add request data fields
-            if (static::$requestData) {
-                $requestObject = array_merge($requestObject, static::$requestData);
-            }
-
-            // Add response data fields (status_code, response, duration)
-            if (static::$responseData) {
-                $requestObject['status_code'] = static::$responseData['status_code'];
-                $requestObject['response'] = static::$responseData['response'];
-                $requestObject['duration'] = static::$responseData['duration'];
-            }
-
-            $payload['request'] = $requestObject;
+        if (static::$incomingRequest) {
+            $payload['request'] = static::$incomingRequest;
         }
 
         // Add logs if we have some
@@ -258,32 +226,21 @@ class PayloadCollector
         $ch = curl_init();
 
         curl_setopt_array($ch, [
-            CURLOPT_URL => static::getEndpointUrl(),
+            CURLOPT_URL => 'https://apextoolbox.com/api/v1/logs',
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($payload),
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . static::$config['token'],
                 'Content-Type: application/json',
             ],
+            CURLOPT_CONNECTTIMEOUT => 2,
             CURLOPT_TIMEOUT => 5,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_NOSIGNAL => 1,
         ]);
 
         curl_exec($ch);
         curl_close($ch);
-    }
-
-    /**
-     * Get endpoint URL
-     */
-    private static function getEndpointUrl(): string
-    {
-        if (!empty($_ENV['APEX_TOOLBOX_DEV_ENDPOINT'])) {
-            return $_ENV['APEX_TOOLBOX_DEV_ENDPOINT'];
-        }
-
-        return 'https://apextoolbox.com/api/v1/telemetry';
     }
 
     /**
@@ -312,11 +269,11 @@ class PayloadCollector
             'class' => get_class($exception),
             'file_path' => str_replace(getcwd() . DIRECTORY_SEPARATOR, '', $exception->getFile()),
             'line_number' => $exception->getLine(),
-            'code' => $exception->getCode(),
-            'stack_trace' => static::prepareStackTrace($trace),
+            'code' => (string) $exception->getCode(),
+            'stack_trace' => json_encode(static::prepareStackTrace($trace)),
             'timestamp' => (new \DateTime())->format('c'),
             'context' => [
-                'environment' => $_ENV['APP_ENV'] ?? 'prod',
+                'environment' => static::$config['environment'] ?? 'prod',
                 'php_version' => PHP_VERSION,
                 'symfony_version' => \Symfony\Component\HttpKernel\Kernel::VERSION,
             ],
@@ -478,8 +435,17 @@ class PayloadCollector
     }
 
     /**
-     * Recursively filter sensitive data
+     * Recursively filter sensitive data (public alias for use by TrackedHttpClient)
      */
+    public static function recursivelyFilter(
+        array $data,
+        array $excludeFields,
+        array $maskFields = [],
+        string $maskValue = '*******'
+    ): array {
+        return static::recursivelyFilterSensitiveData($data, $excludeFields, $maskFields, $maskValue);
+    }
+
     private static function recursivelyFilterSensitiveData(
         array $data,
         array $excludeFields,
@@ -487,15 +453,17 @@ class PayloadCollector
         string $maskValue = '*******'
     ): array {
         $filtered = [];
+        $excludeFieldsLower = array_map('strtolower', $excludeFields);
+        $maskFieldsLower = array_map('strtolower', $maskFields);
 
         foreach ($data as $key => $value) {
             $keyLower = strtolower($key);
 
-            if (in_array($keyLower, array_map('strtolower', $excludeFields))) {
+            if (in_array($keyLower, $excludeFieldsLower)) {
                 continue;
             }
 
-            if (in_array($keyLower, array_map('strtolower', $maskFields))) {
+            if (in_array($keyLower, $maskFieldsLower)) {
                 $filtered[$key] = $maskValue;
                 continue;
             }
