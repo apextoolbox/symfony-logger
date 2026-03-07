@@ -7,8 +7,6 @@ use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\TestCase;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
-
 class ApexToolboxHandlerTest extends TestCase
 {
     private ApexToolboxLogHandler $handler;
@@ -93,7 +91,7 @@ class ApexToolboxHandlerTest extends TestCase
             level: Level::Error,
             message: 'Error message',
             context: ['error' => 'details'],
-            extra: ['class' => 'TestClass', 'function' => 'testMethod']
+            extra: ['class' => 'TestClass', 'function' => 'testMethod', 'callType' => '->']
         );
 
         $reflection = new \ReflectionClass($this->handler);
@@ -109,6 +107,8 @@ class ApexToolboxHandlerTest extends TestCase
         $this->assertEquals('test', $result['channel']);
         $this->assertEquals('TestClass', $result['source_class']);
         $this->assertEquals('testMethod', $result['function']);
+        $this->assertEquals('->', $result['callType']);
+        $this->assertEquals('console', $result['type']); // running in PHPUnit CLI
     }
 
     public function testFlushBuffer(): void

@@ -3,53 +3,46 @@
 namespace ApexToolbox\SymfonyLogger\Tests;
 
 use ApexToolbox\SymfonyLogger\Apex;
-use Exception;
-use Mockery;
-use Psr\Log\LoggerInterface;
+use ApexToolbox\SymfonyLogger\PayloadCollector;
 
 class ApexTest extends AbstractTestCase
 {
-    private $logger;
-
     protected function setUp(): void
     {
         parent::setUp();
-        $this->logger = Mockery::mock(LoggerInterface::class);
-        Apex::setLogger($this->logger);
+        PayloadCollector::clear();
+        PayloadCollector::configure(['enabled' => true, 'token' => 'test-token']);
     }
 
-    public function testLogException(): void
+    protected function tearDown(): void
     {
-        $exception = new Exception('Test exception');
-
-        $this->logger->shouldReceive('error')
-            ->once()
-            ->with('Test exception', Mockery::on(function ($context) use ($exception) {
-                return isset($context['exception']) && $context['exception'] === $exception;
-            }));
-
-        Apex::logException($exception);
-
-        // Mockery verification counts as assertion
-        $this->addToAssertionCount(1);
+        PayloadCollector::clear();
+        parent::tearDown();
     }
 
-    public function testLogExceptionWithContext(): void
+    public function testTrackHttpRequest(): void
     {
-        $exception = new Exception('Test exception');
-        $context = ['user_id' => 123];
+        Apex::trackHttpRequest('GET', 'https://api.example.com/users', 200, 45.2);
 
-        $this->logger->shouldReceive('error')
-            ->once()
-            ->with('Test exception', Mockery::on(function ($ctx) use ($exception, $context) {
-                return isset($ctx['exception'])
-                    && $ctx['exception'] === $exception
-                    && $ctx['user_id'] === 123;
-            }));
+        $outgoing = PayloadCollector::getOutgoingRequests();
 
-        Apex::logException($exception, $context);
+        $this->assertCount(1, $outgoing);
+        $this->assertEquals('GET', $outgoing[0]['method']);
+        $this->assertEquals('https://api.example.com/users', $outgoing[0]['uri']);
+        $this->assertEquals(200, $outgoing[0]['status_code']);
+        $this->assertEquals(45.2, $outgoing[0]['duration']);
+        $this->assertArrayHasKey('timestamp', $outgoing[0]);
+    }
 
-        // Mockery verification counts as assertion
-        $this->addToAssertionCount(1);
+    public function testTrackHttpRequestNullableParams(): void
+    {
+        Apex::trackHttpRequest('POST', 'https://api.example.com/data');
+
+        $outgoing = PayloadCollector::getOutgoingRequests();
+
+        $this->assertCount(1, $outgoing);
+        $this->assertEquals('POST', $outgoing[0]['method']);
+        $this->assertNull($outgoing[0]['status_code']);
+        $this->assertNull($outgoing[0]['duration']);
     }
 }

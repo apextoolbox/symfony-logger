@@ -17,6 +17,7 @@ node_modules/
 composer.lock
 
 # OS generated files
+temp_auto_push.bat
 .DS_Store
 .DS_Store?
 ._*
@@ -35,4 +36,5 @@ coverage/
 .coverage/
 
 # Logs
-*.log
+*.log.gitignore
+temp_interactive_push.bat

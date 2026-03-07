@@ -52,7 +52,7 @@ Done! The SDK automatically captures exceptions, logs, and database queries.
 apex_toolbox:
     path_filters:
         include: ['*']
-        exclude: ['_profiler/*', '_wdt/*']
+        exclude: ['_debugbar/*', 'telescope/*', 'horizon/*', 'api/health', 'api/ping']
 ```
 
 ### Sensitive Data
