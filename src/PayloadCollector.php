@@ -13,6 +13,7 @@ class PayloadCollector
     private static ?array $incomingRequest = null;
     private static array $logs = [];
     private static array $outgoingRequests = [];
+    private static ?array $exception = null;
     private static bool $sent = false;
     private static array $config = [];
 
@@ -89,6 +90,20 @@ class PayloadCollector
     }
 
     /**
+     * Set exception data (only keeps the first exception - root cause)
+     */
+    public static function setException(array $exceptionData): void
+    {
+        if (!static::isEnabled()) {
+            return;
+        }
+
+        if (static::$exception === null) {
+            static::$exception = $exceptionData;
+        }
+    }
+
+    /**
      * Get outgoing requests (for testing)
      */
     public static function getOutgoingRequests(): array
@@ -106,7 +121,7 @@ class PayloadCollector
         }
 
         // Don't send if no meaningful data collected
-        if (!static::$incomingRequest && empty(static::$logs) && empty(static::$outgoingRequests)) {
+        if (!static::$incomingRequest && empty(static::$logs) && empty(static::$outgoingRequests) && static::$exception === null) {
             return;
         }
 
@@ -128,6 +143,7 @@ class PayloadCollector
         static::$incomingRequest = null;
         static::$logs = [];
         static::$outgoingRequests = [];
+        static::$exception = null;
         static::$sent = false;
     }
 
@@ -165,6 +181,10 @@ class PayloadCollector
         // Add outgoing HTTP requests if we have some
         if (!empty(static::$outgoingRequests)) {
             $payload['outgoing_requests'] = static::$outgoingRequests;
+        }
+
+        if (static::$exception !== null) {
+            $payload['exception'] = static::$exception;
         }
 
         return $payload;

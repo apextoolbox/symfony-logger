@@ -2,6 +2,7 @@
 
 namespace ApexToolbox\SymfonyLogger\EventListener;
 
+use ApexToolbox\SymfonyLogger\Handler\ApexToolboxExceptionHandler;
 use ApexToolbox\SymfonyLogger\Handler\ApexToolboxLogHandler;
 use ApexToolbox\SymfonyLogger\PayloadCollector;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -11,6 +12,7 @@ use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -27,12 +29,17 @@ class LoggerListener implements EventSubscriberInterface
     ) {
         $this->config = $parameterBag->get('apextoolbox') ?? [];
         PayloadCollector::configure($this->config);
+
+        if ($parameterBag->has('kernel.project_dir')) {
+            ApexToolboxExceptionHandler::setBasePath($parameterBag->get('kernel.project_dir'));
+        }
     }
 
     public static function getSubscribedEvents(): array
     {
         $events = [
             KernelEvents::REQUEST => ['onKernelRequest', 255],
+            KernelEvents::EXCEPTION => ['onKernelException', 0],
             KernelEvents::RESPONSE => ['onKernelResponse', 0],
             ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
         ];
@@ -63,6 +70,15 @@ class LoggerListener implements EventSubscriberInterface
         // Generate unique request ID for correlation (v7 is time-ordered)
         $requestId = Uuid::uuid7()->toString();
         PayloadCollector::setRequestId($requestId);
+    }
+
+    public function onKernelException(ExceptionEvent $event): void
+    {
+        if (!$event->isMainRequest()) {
+            return;
+        }
+
+        ApexToolboxExceptionHandler::capture($event->getThrowable());
     }
 
     public function onKernelResponse(ResponseEvent $event): void
