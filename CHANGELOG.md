@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-03-23
+
+- Added exception tracking via `kernel.exception` event listener
+- ExceptionHandler captures class, message, file, line, source code context, and filtered stack trace
+- Source code context encodes leading whitespace as HTML entities to survive middleware trimming
+- Stack trace filters to app frames + first vendor frame for readability
+- PayloadCollector stores first exception only (root cause preservation)
+- Hash-based deduplication (md5 of class + file + line)
+
 ## [0.1.4] - 2026-03-19
 
 - Removed `track_http_requests` config option — outgoing HTTP tracking now follows the global `enabled` setting
